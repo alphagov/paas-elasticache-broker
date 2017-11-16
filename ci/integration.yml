@@ -1,0 +1,19 @@
+---
+platform: linux
+image_resource:
+  type: docker-image
+  source:
+    repository: golang
+    tag: 1.9-alpine
+inputs:
+  - name: repo
+    path: ../../../go/src/github.com/alphagov/paas-elasticache-broker
+run:
+  path: sh
+  dir: ../../../go/src/github.com/alphagov/paas-elasticache-broker
+  args:
+    - -e
+    - -c
+    - |
+      apk add --update make
+      make integration
