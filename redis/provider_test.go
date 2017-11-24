@@ -22,11 +22,12 @@ var _ = Describe("Provider", func() {
 	var (
 		mockElasticache *mocks.FakeElastiCache
 		provider        *Provider
+		AuthTokenSeed   = "super-secret"
 	)
 
 	BeforeEach(func() {
 		mockElasticache = &mocks.FakeElastiCache{}
-		provider = NewProvider(mockElasticache, lager.NewLogger("logger"))
+		provider = NewProvider(mockElasticache, lager.NewLogger("logger"), AuthTokenSeed)
 	})
 
 	Context("when provisioning", func() {
@@ -95,7 +96,6 @@ var _ = Describe("Provider", func() {
 			ctx := context.Background()
 			instanceID := "foobar"
 			params := broker.ProvisionParameters{
-				AuthToken:                  "test auth token",
 				InstanceType:               "test instance type",
 				CacheParameterGroupName:    replicationGroupID,
 				SecurityGroupIds:           []string{"test sg1"},
@@ -119,7 +119,7 @@ var _ = Describe("Provider", func() {
 				Tags: []*elasticache.Tag{},
 				AtRestEncryptionEnabled:     aws.Bool(true),
 				TransitEncryptionEnabled:    aws.Bool(true),
-				AuthToken:                   aws.String("test auth token"),
+				AuthToken:                   aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
 				AutomaticFailoverEnabled:    aws.Bool(true),
 				CacheNodeType:               aws.String("test instance type"),
 				CacheParameterGroupName:     aws.String(replicationGroupID),
@@ -271,7 +271,7 @@ var _ = Describe("Provider", func() {
 			}
 			mockElasticache.DescribeReplicationGroupsWithContextReturns(describeOutput, nil)
 			_, _, stateErr := provider.GetState(context.Background(), "foobar")
-			Expect(stateErr).To(MatchError("Invalid response from AWS: no cache clusters returned for cf-qwkec4pxhft6q"))
+			Expect(stateErr).To(MatchError("Invalid response from AWS: no replication groups returned for cf-qwkec4pxhft6q"))
 		})
 
 		It("handles empty status from AWS", func() {
@@ -305,6 +305,147 @@ var _ = Describe("Provider", func() {
 				}
 			}
 			Expect(collisionCount).To(BeNumerically("<=", 2))
+		})
+	})
+
+	Context("when creating credentials for an app", func() {
+
+		Context("when cluster mode is enabled", func() {
+			It("should return with credentials", func() {
+				replicationGroupID := "cf-qwkec4pxhft6q"
+
+				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							ConfigurationEndpoint: &elasticache.Endpoint{
+								Address: aws.String("test-host"),
+								Port:    aws.Int64(1234),
+							},
+						},
+					},
+				}
+				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+
+				instanceID := "foobar"
+				bindingID := "test-binding"
+				ctx := context.Background()
+
+				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(credentials).To(Equal(&broker.Credentials{
+					Host:       "test-host",
+					Port:       1234,
+					Name:       "cf-qwkec4pxhft6q",
+					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
+					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
+					TLSEnabled: true,
+				}))
+
+				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
+				passedCtx, passedInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
+					ReplicationGroupId: aws.String(replicationGroupID),
+				}))
+			})
+		})
+
+		Context("when cluster mode is disabled", func() {
+			It("should return with credentials", func() {
+				replicationGroupID := "cf-qwkec4pxhft6q"
+
+				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							NodeGroups: []*elasticache.NodeGroup{
+								{
+									PrimaryEndpoint: &elasticache.Endpoint{
+										Address: aws.String("test-host"),
+										Port:    aws.Int64(1234),
+									},
+								},
+							},
+						},
+					},
+				}
+				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+
+				instanceID := "foobar"
+				bindingID := "test-binding"
+				ctx := context.Background()
+
+				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(credentials).To(Equal(&broker.Credentials{
+					Host:       "test-host",
+					Port:       1234,
+					Name:       "cf-qwkec4pxhft6q",
+					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
+					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
+					TLSEnabled: true,
+				}))
+
+				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
+				passedCtx, passedInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
+					ReplicationGroupId: aws.String(replicationGroupID),
+				}))
+			})
+
+			It("should return error if zero node groups are returned", func() {
+				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							NodeGroups: []*elasticache.NodeGroup{},
+						},
+					},
+				}
+				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+				_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
+				Expect(err).To(HaveOccurred())
+			})
+		})
+
+		It("should return error if no replication groups are returned", func() {
+			awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{},
+			}
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return error if no endpoints are returned", func() {
+			awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{},
+				},
+			}
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return error if cluster does not exist", func() {
+			describeErr := awserr.New(elasticache.ErrCodeReplicationGroupNotFoundFault, "some message", nil)
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(nil, describeErr)
+
+			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
+			Expect(err).To(HaveOccurred())
+		})
+
+	})
+
+	Context("when revoking credentials from an app", func() {
+		It("should return no error", func() {
+			instanceID := "foobar"
+			bindingID := "test-binding"
+			ctx := context.Background()
+			err := provider.RevokeCredentials(ctx, instanceID, bindingID)
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 })

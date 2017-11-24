@@ -15,7 +15,6 @@ var (
 )
 
 type ProvisionParameters struct {
-	AuthToken                  string
 	InstanceType               string
 	CacheParameterGroupName    string
 	SecurityGroupIds           []string

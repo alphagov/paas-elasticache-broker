@@ -2,8 +2,6 @@ package broker
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -51,7 +49,6 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}
 
 	provisionParams := ProvisionParameters{
-		AuthToken:                  b.generateAuthToken(instanceID),
 		InstanceType:               planConfig.InstanceType,
 		CacheParameterGroupName:    "default.redis3.2",
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
@@ -202,9 +199,4 @@ func ProviderStatesMapping(state ServiceState) (brokerapi.LastOperationState, er
 		return brokerapi.InProgress, nil
 	}
 	return brokerapi.InProgress, fmt.Errorf("Unknown service state: %s", state)
-}
-
-func (b *Broker) generateAuthToken(instanceID string) string {
-	sha := sha256.Sum256([]byte(b.config.AuthTokenSeed + instanceID))
-	return base64.URLEncoding.EncodeToString(sha[:])
 }

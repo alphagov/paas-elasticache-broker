@@ -114,7 +114,6 @@ var _ = Describe("Broker", func() {
 			_, instanceID, params := fakeProvider.ProvisionArgsForCall(0)
 
 			expectedParams := broker.ProvisionParameters{
-				AuthToken:                  "1vhwlb-BZVXf_-b-HcUWLrxlo0qx6ogI8-NpEbOR59c=",
 				InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
 				CacheParameterGroupName:    "default.redis3.2",
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
