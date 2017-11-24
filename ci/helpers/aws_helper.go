@@ -71,7 +71,7 @@ func CreateSecurityGroup(prefix string, session *session.Session) (*string, erro
 		return nil, err
 	}
 
-	for _, port := range []int64{5432, 3306} {
+	for _, port := range []int64{6379} {
 		_, err = ec2Service.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: securityGroup.GroupId,
 			IpPermissions: []*ec2.IpPermission{{

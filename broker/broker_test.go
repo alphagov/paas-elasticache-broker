@@ -407,7 +407,7 @@ var _ = Describe("Broker", func() {
 			Expect(passedBindingId).To(Equal(bindingID))
 		})
 
-		It("handles errors from the provuder", func() {
+		It("handles errors from the provider", func() {
 			unbindErr := fmt.Errorf("some error")
 			fakeProvider := &mocks.FakeProvider{}
 			fakeProvider.RevokeCredentialsReturnsOnCall(0, unbindErr)

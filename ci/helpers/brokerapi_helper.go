@@ -24,6 +24,10 @@ type ProvisioningResponse struct {
 	Operation    string `json:"operation,omitempty"`
 }
 
+type BindingResponse struct {
+	Credentials map[string]interface{} `json:"credentials,omitempty"`
+}
+
 type LastOperationResponse struct {
 	State       string `json:"state,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -302,4 +306,37 @@ func (b *BrokerAPIClient) DoUnbindRequest(instanceID, serviceID, planID, binding
 		uriParam{key: "service_id", value: serviceID},
 		uriParam{key: "plan_id", value: planID},
 	)
+}
+
+func (b *BrokerAPIClient) Bind(instanceID, serviceID, planID, appGUID, bindingID string) (int, *BindingResponse, error) {
+	resp, err := b.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return resp.StatusCode, nil, nil
+	}
+
+	bindingResponse := &BindingResponse{}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	err = json.Unmarshal(body, bindingResponse)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	return resp.StatusCode, bindingResponse, nil
+}
+
+func (b *BrokerAPIClient) Unbind(instanceID, serviceID, planID, bindingID string) (int, error) {
+	resp, err := b.DoUnbindRequest(instanceID, serviceID, planID, bindingID)
+	if err != nil {
+		return 0, err
+	}
+
+	return resp.StatusCode, nil
 }
