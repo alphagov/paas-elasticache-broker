@@ -138,7 +138,14 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		"details":     details,
 	})
 
-	return brokerapi.Binding{}, errors.New("notimp")
+	credentials, err := b.provider.GenerateCredentials(ctx, instanceID, bindingID)
+	if err != nil {
+		return brokerapi.Binding{}, err
+	}
+
+	return brokerapi.Binding{
+		Credentials: credentials,
+	}, nil
 }
 
 // Unbind removes the binding between an application and a service instance
@@ -149,7 +156,7 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 		"details":     details,
 	})
 
-	return errors.New("noimp")
+	return b.provider.RevokeCredentials(ctx, instanceID, bindingID)
 }
 
 // LastOperation returns with the last known state of the given service instance

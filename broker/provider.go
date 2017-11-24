@@ -30,9 +30,9 @@ type Provider interface {
 // Credentials are the connection parameters for Redis clients
 type Credentials struct {
 	Host       string `json:"host"`
-	Port       string `json:"port"`
+	Port       int64  `json:"port"`
 	Name       string `json:"name"`
 	Password   string `json:"password"`
 	URI        string `json:"uri"`
-	TLSEnabled string `json:"tls_enabled"`
+	TLSEnabled bool   `json:"tls_enabled"`
 }

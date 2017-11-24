@@ -3,6 +3,7 @@ package broker_test
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-elasticache-broker/broker"
@@ -344,6 +345,77 @@ var _ = Describe("Broker", func() {
 			brokerAPIState, err := broker.ProviderStatesMapping("some-unknown-state")
 			Expect(err).To(HaveOccurred())
 			Expect(brokerAPIState).To(Equal(brokerapi.InProgress))
+		})
+	})
+
+	Context("when binding a service instance", func() {
+		It("gets credentials from the provider", func() {
+			ctx := context.Background()
+			instanceID := "test-instance"
+			bindingID := "test-binding"
+			expectedCredentials := &broker.Credentials{
+				Host: "test-host",
+			}
+
+			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.GenerateCredentialsReturnsOnCall(0, expectedCredentials, nil)
+
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+			binding, err := b.Bind(ctx, instanceID, bindingID, brokerapi.BindDetails{})
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(binding).To(Equal(brokerapi.Binding{Credentials: expectedCredentials}))
+
+			Expect(fakeProvider.GenerateCredentialsCallCount()).To(Equal(1))
+			passedCtx, passedInstanceId, passedBindingId := fakeProvider.GenerateCredentialsArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(passedInstanceId).To(Equal(instanceID))
+			Expect(passedBindingId).To(Equal(bindingID))
+		})
+
+		It("handles errors from the provider", func() {
+			bindErr := fmt.Errorf("some error")
+			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.GenerateCredentialsReturnsOnCall(0, nil, bindErr)
+
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+			binding, err := b.Bind(context.Background(), "test-instance", "test-binding", brokerapi.BindDetails{})
+
+			Expect(err).To(MatchError(bindErr))
+			Expect(binding).To(Equal(brokerapi.Binding{}))
+		})
+	})
+
+	Context("when unbinding a service instance", func() {
+		It("revokes the credentials in the provider", func() {
+			ctx := context.Background()
+			instanceID := "test-instance"
+			bindingID := "test-binding"
+
+			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.RevokeCredentialsReturnsOnCall(0, nil)
+
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+			err := b.Unbind(ctx, instanceID, bindingID, brokerapi.UnbindDetails{})
+
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.RevokeCredentialsCallCount()).To(Equal(1))
+			passedCtx, passedInstanceId, passedBindingId := fakeProvider.RevokeCredentialsArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(passedInstanceId).To(Equal(instanceID))
+			Expect(passedBindingId).To(Equal(bindingID))
+		})
+
+		It("handles errors from the provuder", func() {
+			unbindErr := fmt.Errorf("some error")
+			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.RevokeCredentialsReturnsOnCall(0, unbindErr)
+
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+			err := b.Unbind(context.Background(), "test-instance", "test-binding", brokerapi.UnbindDetails{})
+
+			Expect(err).To(MatchError(unbindErr))
 		})
 	})
 })
