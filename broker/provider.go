@@ -23,4 +23,16 @@ type Provider interface {
 	Provision(ctx context.Context, instanceID string, params ProvisionParameters) error
 	Deprovision(ctx context.Context, instanceID string, params DeprovisionParameters) error
 	GetState(ctx context.Context, instanceID string) (ServiceState, string, error)
+	GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*Credentials, error)
+	RevokeCredentials(ctx context.Context, instanceID, bindingID string) error
+}
+
+// Credentials are the connection parameters for Redis clients
+type Credentials struct {
+	Host       string `json:"host"`
+	Port       int64  `json:"port"`
+	Name       string `json:"name"`
+	Password   string `json:"password"`
+	URI        string `json:"uri"`
+	TLSEnabled bool   `json:"tls_enabled"`
 }

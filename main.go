@@ -51,7 +51,7 @@ func newBroker(config broker.Config, logger lager.Logger) *broker.Broker {
 	awsConfig := aws.NewConfig().WithRegion(config.Region)
 	awsSession := session.Must(session.NewSession(awsConfig))
 	svc := elasticache.New(awsSession)
-	return broker.New(config, redis.NewProvider(svc, logger), logger)
+	return broker.New(config, redis.NewProvider(svc, logger, config.AuthTokenSeed), logger)
 }
 
 func newHTTPHandler(serviceBroker *broker.Broker, logger lager.Logger, config broker.Config) http.Handler {

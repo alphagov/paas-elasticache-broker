@@ -2,9 +2,12 @@ package redis
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base32"
+	"encoding/base64"
 	"fmt"
 	"hash/fnv"
+	"net/url"
 	"strings"
 
 	"code.cloudfoundry.org/lager"
@@ -16,15 +19,17 @@ import (
 
 // Provider is the Redis broker provider
 type Provider struct {
-	aws    ElastiCache
-	logger lager.Logger
+	aws           ElastiCache
+	logger        lager.Logger
+	authTokenSeed string
 }
 
 // NewProvider creates a new Redis provider
-func NewProvider(elasticache ElastiCache, logger lager.Logger) *Provider {
+func NewProvider(elasticache ElastiCache, logger lager.Logger, authTokenSeed string) *Provider {
 	return &Provider{
-		aws:    elasticache,
-		logger: logger,
+		aws:           elasticache,
+		logger:        logger,
+		authTokenSeed: authTokenSeed,
 	}
 }
 
@@ -69,7 +74,7 @@ func (p *Provider) Provision(ctx context.Context, instanceID string, params brok
 		Tags: []*elasticache.Tag{},
 		AtRestEncryptionEnabled:     aws.Bool(true),
 		TransitEncryptionEnabled:    aws.Bool(true),
-		AuthToken:                   aws.String(params.AuthToken),
+		AuthToken:                   aws.String(GenerateAuthToken(p.authTokenSeed, instanceID)),
 		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
 		CacheNodeType:               aws.String(params.InstanceType),
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
@@ -124,10 +129,7 @@ func (p *Provider) Deprovision(ctx context.Context, instanceID string, params br
 func (p *Provider) GetState(ctx context.Context, instanceID string) (broker.ServiceState, string, error) {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
-	output, err := p.aws.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
-		ReplicationGroupId: aws.String(replicationGroupID),
-	})
-
+	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == elasticache.ErrCodeReplicationGroupNotFoundFault {
@@ -137,17 +139,81 @@ func (p *Provider) GetState(ctx context.Context, instanceID string) (broker.Serv
 		return broker.ServiceState(""), "", err
 	}
 
-	if len(output.ReplicationGroups) == 0 {
-		return broker.ServiceState(""), "", fmt.Errorf("Invalid response from AWS: no cache clusters returned for %s", replicationGroupID)
-	}
-
-	if output.ReplicationGroups[0].Status == nil {
+	if replicationGroup.Status == nil {
 		return broker.ServiceState(""), "", fmt.Errorf("Invalid response from AWS: status is missing for %s", replicationGroupID)
 	}
 
-	message := fmt.Sprintf("ElastiCache state is %s for %s", *output.ReplicationGroups[0].Status, replicationGroupID)
+	message := fmt.Sprintf("ElastiCache state is %s for %s", *replicationGroup.Status, replicationGroupID)
 
-	return broker.ServiceState(*output.ReplicationGroups[0].Status), message, nil
+	return broker.ServiceState(*replicationGroup.Status), message, nil
+}
+
+func (p *Provider) describeReplicationGroup(ctx context.Context, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
+	output, err := p.aws.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
+		ReplicationGroupId: aws.String(replicationGroupID),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if output.ReplicationGroups == nil || len(output.ReplicationGroups) == 0 {
+		return nil, fmt.Errorf("Invalid response from AWS: no replication groups returned for %s", replicationGroupID)
+	}
+
+	return output.ReplicationGroups[0], nil
+}
+
+// GenerateCredentials generates the client credentials for a Redis instance and an app
+func (p *Provider) GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*broker.Credentials, error) {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+
+	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == elasticache.ErrCodeReplicationGroupNotFoundFault {
+				return nil, fmt.Errorf("Replication group does not exist: %s", replicationGroupID)
+			}
+		}
+		return nil, err
+	}
+
+	var host string
+	var port int64
+
+	if replicationGroup.ConfigurationEndpoint != nil {
+		host = *replicationGroup.ConfigurationEndpoint.Address
+		port = *replicationGroup.ConfigurationEndpoint.Port
+	} else {
+		if replicationGroup.NodeGroups == nil || len(replicationGroup.NodeGroups) == 0 {
+			return nil, fmt.Errorf("Invalid response from AWS: no node groups returned for %s", replicationGroupID)
+		}
+		host = *replicationGroup.NodeGroups[0].PrimaryEndpoint.Address
+		port = *replicationGroup.NodeGroups[0].PrimaryEndpoint.Port
+	}
+
+	password := GenerateAuthToken(p.authTokenSeed, instanceID)
+	uri := &url.URL{
+		Scheme: "rediss",
+		Host:   fmt.Sprintf("%s:%d", host, port),
+		User:   url.UserPassword("x", password),
+	}
+	return &broker.Credentials{
+		Host:       host,
+		Port:       port,
+		Name:       replicationGroupID,
+		Password:   password,
+		TLSEnabled: true,
+		URI:        uri.String(),
+	}, nil
+}
+
+// RevokeCredentials revokes the credentials between an app and a Redis instance
+//
+// The method does nothing because we can't revoke the credentials as there is one common password
+// for a Redis service instance
+func (p *Provider) RevokeCredentials(ctx context.Context, instanceID, bindingID string) error {
+	return nil
 }
 
 // GenerateReplicationGroupName generates a valid ElastiCache replication group name
@@ -158,4 +224,10 @@ func GenerateReplicationGroupName(instanceID string) string {
 	out := hash.Sum([]byte{})
 	encoder := base32.StdEncoding.WithPadding(base32.NoPadding)
 	return strings.ToLower("cf-" + encoder.EncodeToString(out))
+}
+
+// GenerateAuthToken generates a password based on the given seed and the service instance id
+func GenerateAuthToken(seed string, instanceID string) string {
+	sha := sha256.Sum256([]byte(seed + instanceID))
+	return base64.URLEncoding.EncodeToString(sha[:])
 }

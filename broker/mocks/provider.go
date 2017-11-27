@@ -51,6 +51,48 @@ type FakeProvider struct {
 		result2 string
 		result3 error
 	}
+	GetCredentialsForInstanceStub        func(ctx context.Context, instanceID string) (interface{}, error)
+	getCredentialsForInstanceMutex       sync.RWMutex
+	getCredentialsForInstanceArgsForCall []struct {
+		ctx        context.Context
+		instanceID string
+	}
+	getCredentialsForInstanceReturns struct {
+		result1 interface{}
+		result2 error
+	}
+	getCredentialsForInstanceReturnsOnCall map[int]struct {
+		result1 interface{}
+		result2 error
+	}
+	GenerateCredentialsStub        func(ctx context.Context, instanceID, bindingID string) (*broker.Credentials, error)
+	generateCredentialsMutex       sync.RWMutex
+	generateCredentialsArgsForCall []struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+	}
+	generateCredentialsReturns struct {
+		result1 *broker.Credentials
+		result2 error
+	}
+	generateCredentialsReturnsOnCall map[int]struct {
+		result1 *broker.Credentials
+		result2 error
+	}
+	RevokeCredentialsStub        func(ctx context.Context, instanceID, bindingID string) error
+	revokeCredentialsMutex       sync.RWMutex
+	revokeCredentialsArgsForCall []struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+	}
+	revokeCredentialsReturns struct {
+		result1 error
+	}
+	revokeCredentialsReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -210,6 +252,161 @@ func (fake *FakeProvider) GetStateReturnsOnCall(i int, result1 broker.ServiceSta
 	}{result1, result2, result3}
 }
 
+func (fake *FakeProvider) GetCredentialsForInstance(ctx context.Context, instanceID string) (interface{}, error) {
+	fake.getCredentialsForInstanceMutex.Lock()
+	ret, specificReturn := fake.getCredentialsForInstanceReturnsOnCall[len(fake.getCredentialsForInstanceArgsForCall)]
+	fake.getCredentialsForInstanceArgsForCall = append(fake.getCredentialsForInstanceArgsForCall, struct {
+		ctx        context.Context
+		instanceID string
+	}{ctx, instanceID})
+	fake.recordInvocation("GetCredentialsForInstance", []interface{}{ctx, instanceID})
+	fake.getCredentialsForInstanceMutex.Unlock()
+	if fake.GetCredentialsForInstanceStub != nil {
+		return fake.GetCredentialsForInstanceStub(ctx, instanceID)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fake.getCredentialsForInstanceReturns.result1, fake.getCredentialsForInstanceReturns.result2
+}
+
+func (fake *FakeProvider) GetCredentialsForInstanceCallCount() int {
+	fake.getCredentialsForInstanceMutex.RLock()
+	defer fake.getCredentialsForInstanceMutex.RUnlock()
+	return len(fake.getCredentialsForInstanceArgsForCall)
+}
+
+func (fake *FakeProvider) GetCredentialsForInstanceArgsForCall(i int) (context.Context, string) {
+	fake.getCredentialsForInstanceMutex.RLock()
+	defer fake.getCredentialsForInstanceMutex.RUnlock()
+	return fake.getCredentialsForInstanceArgsForCall[i].ctx, fake.getCredentialsForInstanceArgsForCall[i].instanceID
+}
+
+func (fake *FakeProvider) GetCredentialsForInstanceReturns(result1 interface{}, result2 error) {
+	fake.GetCredentialsForInstanceStub = nil
+	fake.getCredentialsForInstanceReturns = struct {
+		result1 interface{}
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GetCredentialsForInstanceReturnsOnCall(i int, result1 interface{}, result2 error) {
+	fake.GetCredentialsForInstanceStub = nil
+	if fake.getCredentialsForInstanceReturnsOnCall == nil {
+		fake.getCredentialsForInstanceReturnsOnCall = make(map[int]struct {
+			result1 interface{}
+			result2 error
+		})
+	}
+	fake.getCredentialsForInstanceReturnsOnCall[i] = struct {
+		result1 interface{}
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GenerateCredentials(ctx context.Context, instanceID string, bindingID string) (*broker.Credentials, error) {
+	fake.generateCredentialsMutex.Lock()
+	ret, specificReturn := fake.generateCredentialsReturnsOnCall[len(fake.generateCredentialsArgsForCall)]
+	fake.generateCredentialsArgsForCall = append(fake.generateCredentialsArgsForCall, struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+	}{ctx, instanceID, bindingID})
+	fake.recordInvocation("GenerateCredentials", []interface{}{ctx, instanceID, bindingID})
+	fake.generateCredentialsMutex.Unlock()
+	if fake.GenerateCredentialsStub != nil {
+		return fake.GenerateCredentialsStub(ctx, instanceID, bindingID)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fake.generateCredentialsReturns.result1, fake.generateCredentialsReturns.result2
+}
+
+func (fake *FakeProvider) GenerateCredentialsCallCount() int {
+	fake.generateCredentialsMutex.RLock()
+	defer fake.generateCredentialsMutex.RUnlock()
+	return len(fake.generateCredentialsArgsForCall)
+}
+
+func (fake *FakeProvider) GenerateCredentialsArgsForCall(i int) (context.Context, string, string) {
+	fake.generateCredentialsMutex.RLock()
+	defer fake.generateCredentialsMutex.RUnlock()
+	return fake.generateCredentialsArgsForCall[i].ctx, fake.generateCredentialsArgsForCall[i].instanceID, fake.generateCredentialsArgsForCall[i].bindingID
+}
+
+func (fake *FakeProvider) GenerateCredentialsReturns(result1 *broker.Credentials, result2 error) {
+	fake.GenerateCredentialsStub = nil
+	fake.generateCredentialsReturns = struct {
+		result1 *broker.Credentials
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GenerateCredentialsReturnsOnCall(i int, result1 *broker.Credentials, result2 error) {
+	fake.GenerateCredentialsStub = nil
+	if fake.generateCredentialsReturnsOnCall == nil {
+		fake.generateCredentialsReturnsOnCall = make(map[int]struct {
+			result1 *broker.Credentials
+			result2 error
+		})
+	}
+	fake.generateCredentialsReturnsOnCall[i] = struct {
+		result1 *broker.Credentials
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) RevokeCredentials(ctx context.Context, instanceID string, bindingID string) error {
+	fake.revokeCredentialsMutex.Lock()
+	ret, specificReturn := fake.revokeCredentialsReturnsOnCall[len(fake.revokeCredentialsArgsForCall)]
+	fake.revokeCredentialsArgsForCall = append(fake.revokeCredentialsArgsForCall, struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+	}{ctx, instanceID, bindingID})
+	fake.recordInvocation("RevokeCredentials", []interface{}{ctx, instanceID, bindingID})
+	fake.revokeCredentialsMutex.Unlock()
+	if fake.RevokeCredentialsStub != nil {
+		return fake.RevokeCredentialsStub(ctx, instanceID, bindingID)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fake.revokeCredentialsReturns.result1
+}
+
+func (fake *FakeProvider) RevokeCredentialsCallCount() int {
+	fake.revokeCredentialsMutex.RLock()
+	defer fake.revokeCredentialsMutex.RUnlock()
+	return len(fake.revokeCredentialsArgsForCall)
+}
+
+func (fake *FakeProvider) RevokeCredentialsArgsForCall(i int) (context.Context, string, string) {
+	fake.revokeCredentialsMutex.RLock()
+	defer fake.revokeCredentialsMutex.RUnlock()
+	return fake.revokeCredentialsArgsForCall[i].ctx, fake.revokeCredentialsArgsForCall[i].instanceID, fake.revokeCredentialsArgsForCall[i].bindingID
+}
+
+func (fake *FakeProvider) RevokeCredentialsReturns(result1 error) {
+	fake.RevokeCredentialsStub = nil
+	fake.revokeCredentialsReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) RevokeCredentialsReturnsOnCall(i int, result1 error) {
+	fake.RevokeCredentialsStub = nil
+	if fake.revokeCredentialsReturnsOnCall == nil {
+		fake.revokeCredentialsReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.revokeCredentialsReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -219,6 +416,12 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.deprovisionMutex.RUnlock()
 	fake.getStateMutex.RLock()
 	defer fake.getStateMutex.RUnlock()
+	fake.getCredentialsForInstanceMutex.RLock()
+	defer fake.getCredentialsForInstanceMutex.RUnlock()
+	fake.generateCredentialsMutex.RLock()
+	defer fake.generateCredentialsMutex.RUnlock()
+	fake.revokeCredentialsMutex.RLock()
+	defer fake.revokeCredentialsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

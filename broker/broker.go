@@ -2,8 +2,6 @@ package broker
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -51,7 +49,6 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}
 
 	provisionParams := ProvisionParameters{
-		AuthToken:                  b.generateAuthToken(instanceID),
 		InstanceType:               planConfig.InstanceType,
 		CacheParameterGroupName:    "default.redis3.2",
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
@@ -141,7 +138,14 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		"details":     details,
 	})
 
-	return brokerapi.Binding{}, errors.New("notimp")
+	credentials, err := b.provider.GenerateCredentials(ctx, instanceID, bindingID)
+	if err != nil {
+		return brokerapi.Binding{}, err
+	}
+
+	return brokerapi.Binding{
+		Credentials: credentials,
+	}, nil
 }
 
 // Unbind removes the binding between an application and a service instance
@@ -152,7 +156,7 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 		"details":     details,
 	})
 
-	return errors.New("noimp")
+	return b.provider.RevokeCredentials(ctx, instanceID, bindingID)
 }
 
 // LastOperation returns with the last known state of the given service instance
@@ -202,9 +206,4 @@ func ProviderStatesMapping(state ServiceState) (brokerapi.LastOperationState, er
 		return brokerapi.InProgress, nil
 	}
 	return brokerapi.InProgress, fmt.Errorf("Unknown service state: %s", state)
-}
-
-func (b *Broker) generateAuthToken(instanceID string) string {
-	sha := sha256.Sum256([]byte(b.config.AuthTokenSeed + instanceID))
-	return base64.URLEncoding.EncodeToString(sha[:])
 }
