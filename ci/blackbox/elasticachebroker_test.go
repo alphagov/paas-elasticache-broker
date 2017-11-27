@@ -142,6 +142,23 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
+			By("ensuring a client is not able to connect without TLS", func() {
+				host, ok := credentials["host"].(string)
+				Expect(ok).To(BeTrue(), fmt.Sprintf("host is invalid: %v", credentials["host"]))
+				port, ok := convertInterfaceToInt64(credentials["port"])
+				Expect(ok).To(BeTrue(), fmt.Sprintf("port is invalid: %v", credentials["port"]))
+				password, ok := credentials["password"].(string)
+				Expect(ok).To(BeTrue(), fmt.Sprintf("password is invalid: %v", credentials["password"]))
+
+				_, err := redisclient.Dial(
+					"tcp",
+					fmt.Sprintf("%s:%d", host, port),
+					redisclient.DialPassword(password),
+					redisclient.DialUseTLS(false),
+				)
+				Expect(err).To(HaveOccurred())
+			})
+
 		})
 
 	})
