@@ -13,18 +13,14 @@ var _ = Describe("Config", func() {
 		config Config
 
 		validConfig = Config{
-			LogLevel:                     "log_level",
-			Username:                     "username",
-			Password:                     "password",
-			Region:                       "region",
-			ClusterNamePrefix:            "cluster_name_prefix",
-			BrokerName:                   "broker_name",
-			AuthTokenSeed:                "auth_token_seed",
-			AllowUserProvisionParameters: true,
-			AllowUserUpdateParameters:    true,
-			AllowUserBindParameters:      true,
-			CacheSubnetGroupName:         "cache_subnet_group_name",
-			VpcSecurityGroupIds:          []string{"vpc_security_group_id"},
+			LogLevel:             "log_level",
+			Username:             "username",
+			Password:             "password",
+			Region:               "region",
+			BrokerName:           "broker_name",
+			AuthTokenSeed:        "auth_token_seed",
+			CacheSubnetGroupName: "cache_subnet_group_name",
+			VpcSecurityGroupIds:  []string{"vpc_security_group_id"},
 			Catalog: brokerapi.CatalogResponse{
 				Services: []brokerapi.Service{
 					brokerapi.Service{
@@ -68,11 +64,6 @@ var _ = Describe("Config", func() {
 
 		It("requires a region", func() {
 			config.Region = ""
-			Expect(config.Validate()).NotTo(Succeed())
-		})
-
-		It("requires a cluster name prefix", func() {
-			config.ClusterNamePrefix = ""
 			Expect(config.Validate()).NotTo(Succeed())
 		})
 

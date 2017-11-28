@@ -20,6 +20,8 @@ import (
 	. "github.com/alphagov/paas-elasticache-broker/ci/helpers"
 )
 
+const clusterNamePrefix = "cf-broker-test"
+
 var (
 	elastiCacheBrokerPort    int
 	elastiCacheBrokerUrl     string
@@ -47,13 +49,13 @@ func TestSuite(t *testing.T) {
 		))
 
 		elastiCacheSubnetGroupName, err = CreateSubnetGroup(
-			originalConfig.ClusterNamePrefix,
+			clusterNamePrefix,
 			awsSession,
 		)
 		Expect(err).NotTo(HaveOccurred())
 
 		ec2SecurityGroupID, err = CreateSecurityGroup(
-			originalConfig.ClusterNamePrefix,
+			clusterNamePrefix,
 			awsSession,
 		)
 		Expect(err).NotTo(HaveOccurred())
