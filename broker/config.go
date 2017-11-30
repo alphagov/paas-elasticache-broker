@@ -47,20 +47,16 @@ type PlanConfig struct {
 }
 
 type Config struct {
-	LogLevel                     string                    `json:"log_level"`
-	Username                     string                    `json:"username"`
-	Password                     string                    `json:"password"`
-	Region                       string                    `json:"region"`
-	ClusterNamePrefix            string                    `json:"cluster_name_prefix"`
-	BrokerName                   string                    `json:"broker_name"`
-	AuthTokenSeed                string                    `json:"auth_token_seed"`
-	AllowUserProvisionParameters bool                      `json:"allow_user_provision_parameters"`
-	AllowUserUpdateParameters    bool                      `json:"allow_user_update_parameters"`
-	AllowUserBindParameters      bool                      `json:"allow_user_bind_parameters"`
-	CacheSubnetGroupName         string                    `json:"cache_subnet_group_name"`
-	VpcSecurityGroupIds          []string                  `json:"vpc_security_group_ids"`
-	Catalog                      brokerapi.CatalogResponse `json:"catalog"`
-	PlanConfigs                  map[string]PlanConfig     `json:"plan_configs"`
+	LogLevel             string                    `json:"log_level"`
+	Username             string                    `json:"username"`
+	Password             string                    `json:"password"`
+	Region               string                    `json:"region"`
+	BrokerName           string                    `json:"broker_name"`
+	AuthTokenSeed        string                    `json:"auth_token_seed"`
+	CacheSubnetGroupName string                    `json:"cache_subnet_group_name"`
+	VpcSecurityGroupIds  []string                  `json:"vpc_security_group_ids"`
+	Catalog              brokerapi.CatalogResponse `json:"catalog"`
+	PlanConfigs          map[string]PlanConfig     `json:"plan_configs"`
 }
 
 func (c Config) GetPlanConfig(planID string) (PlanConfig, error) {
@@ -113,10 +109,6 @@ func (c Config) Validate() error {
 
 	if c.Region == "" {
 		return errors.New("Must provide a non-empty region")
-	}
-
-	if c.ClusterNamePrefix == "" {
-		return errors.New("Must provide a non-empty cluster_name_prefix")
 	}
 
 	if c.BrokerName == "" {
