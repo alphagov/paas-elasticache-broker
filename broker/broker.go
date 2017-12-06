@@ -162,7 +162,8 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 // LastOperation returns with the last known state of the given service instance
 func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData string) (brokerapi.LastOperation, error) {
 	b.logger.Debug("last-operation", lager.Data{
-		"instance-id": instanceID,
+		"instance-id":    instanceID,
+		"operation-data": operationData,
 	})
 
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
