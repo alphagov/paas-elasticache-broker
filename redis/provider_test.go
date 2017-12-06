@@ -439,6 +439,37 @@ var _ = Describe("Provider", func() {
 
 	})
 
+	Context("when deleting a parameter group", func() {
+		It("should delete the parameter group successfully", func() {
+			ctx := context.Background()
+			err := provider.DeleteCacheParameterGroup(ctx, "foobar")
+
+			Expect(mockElasticache.DeleteCacheParameterGroupWithContextCallCount()).To(Equal(1))
+			receivedCtx, receivedInput, _ := mockElasticache.DeleteCacheParameterGroupWithContextArgsForCall(0)
+			Expect(receivedCtx).To(Equal(ctx))
+			Expect(receivedInput).To(Equal(&elasticache.DeleteCacheParameterGroupInput{
+				CacheParameterGroupName: aws.String("cf-qwkec4pxhft6q"),
+			}))
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should return no error if parameter group does not exist", func() {
+			deleteErr := awserr.New(elasticache.ErrCodeCacheParameterGroupNotFoundFault, "some message", nil)
+			mockElasticache.DeleteCacheParameterGroupWithContextReturns(nil, deleteErr)
+			err := provider.DeleteCacheParameterGroup(context.Background(), "foobar")
+
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should return an error if deleting the parameter group fails", func() {
+			deleteErr := errors.New("A really really really bad error")
+			mockElasticache.DeleteCacheParameterGroupWithContextReturns(nil, deleteErr)
+			err := provider.DeleteCacheParameterGroup(context.Background(), "foobar")
+
+			Expect(err).To(MatchError(deleteErr))
+		})
+	})
+
 	Context("when revoking credentials from an app", func() {
 		It("should return no error", func() {
 			instanceID := "foobar"

@@ -59,6 +59,21 @@ func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID str
 	return err
 }
 
+func (p *Provider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	_, err := p.aws.DeleteCacheParameterGroupWithContext(ctx, &elasticache.DeleteCacheParameterGroupInput{
+		CacheParameterGroupName: aws.String(replicationGroupID),
+	})
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == elasticache.ErrCodeCacheParameterGroupNotFoundFault {
+				return nil
+			}
+		}
+	}
+	return err
+}
+
 // Provision creates a replication group and a cache parameter group
 func (p *Provider) Provision(ctx context.Context, instanceID string, params broker.ProvisionParameters) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)

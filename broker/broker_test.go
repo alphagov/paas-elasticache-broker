@@ -163,7 +163,7 @@ var _ = Describe("Broker", func() {
 		It("returns the provisioned service spec", func() {
 			b := broker.New(validConfig, &mocks.FakeProvider{}, lager.NewLogger("logger"))
 			Expect(b.Provision(context.Background(), "instanceid", validProvisionDetails, true)).
-				To(Equal(brokerapi.ProvisionedServiceSpec{IsAsync: true}))
+				To(Equal(brokerapi.ProvisionedServiceSpec{IsAsync: true, OperationData: broker.OperationProvisioning}))
 		})
 	})
 
@@ -251,7 +251,7 @@ var _ = Describe("Broker", func() {
 		It("returns the deprovisioned service spec", func() {
 			b := broker.New(validConfig, &mocks.FakeProvider{}, lager.NewLogger("logger"))
 			Expect(b.Deprovision(context.Background(), "instanceid", validDeprovisionDetails, true)).
-				To(Equal(brokerapi.DeprovisionServiceSpec{IsAsync: true}))
+				To(Equal(brokerapi.DeprovisionServiceSpec{IsAsync: true, OperationData: broker.OperationDeprovisioning}))
 		})
 	})
 
@@ -304,14 +304,45 @@ var _ = Describe("Broker", func() {
 			Expect(err).To(MatchError("error getting state for myinstance: foobar"))
 		})
 
-		It("errors if the instance doesn't exist", func() {
-			fakeProvider := &mocks.FakeProvider{}
-			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-			fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+		Context("When provisioning", func() {
+			It("returns ErrInstanceDoesNotExist when instance does not exist", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
 
-			_, err := b.LastOperation(context.Background(), "myinstance", "opdata")
+				_, err := b.LastOperation(context.Background(), "myinstance", broker.OperationProvisioning)
+				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(0))
+				Expect(err).To(MatchError(brokerapi.ErrInstanceDoesNotExist))
+			})
+		})
 
-			Expect(err).To(MatchError("instance does not exist"))
+		Context("When deprovisioning", func() {
+			It("deletes the cache parameter group if the instance doesn't exist and returns ErrInstanceDoesNotExist", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				ctx := context.Background()
+				_, err := b.LastOperation(ctx, "myinstance", broker.OperationDeprovisioning)
+
+				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(1))
+				receivedContext, receivedInstanceID := fakeProvider.DeleteCacheParameterGroupArgsForCall(0)
+				_, hasDeadline := receivedContext.Deadline()
+				Expect(hasDeadline).To(BeTrue())
+				Expect(receivedInstanceID).To(Equal("myinstance"))
+				Expect(err).To(MatchError(brokerapi.ErrInstanceDoesNotExist))
+			})
+
+			It("returns an error if deleting the cache parameter group fails", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				deleteError := errors.New("this is an error")
+				fakeProvider.DeleteCacheParameterGroupReturns(deleteError)
+				ctx := context.Background()
+				_, err := b.LastOperation(ctx, "myinstance", broker.OperationDeprovisioning)
+
+				Expect(err).To(MatchError("error deleting parameter group myinstance: this is an error"))
+			})
 		})
 
 		It("logs an error and reports 'in progress' if it receives an unknown state from the provider", func() {
@@ -326,6 +357,7 @@ var _ = Describe("Broker", func() {
 
 			Expect(log).To(gbytes.Say("Unknown service state: some-unknown-state"))
 		})
+
 	})
 
 	Describe("state mapping from AWS to brokerapi package", func() {
