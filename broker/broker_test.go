@@ -163,7 +163,10 @@ var _ = Describe("Broker", func() {
 		It("returns the provisioned service spec", func() {
 			b := broker.New(validConfig, &mocks.FakeProvider{}, lager.NewLogger("logger"))
 			Expect(b.Provision(context.Background(), "instanceid", validProvisionDetails, true)).
-				To(Equal(brokerapi.ProvisionedServiceSpec{IsAsync: true}))
+				To(Equal(brokerapi.ProvisionedServiceSpec{
+					IsAsync:       true,
+					OperationData: broker.Operation{Action: broker.ActionProvisioning}.String(),
+				}))
 		})
 	})
 
@@ -251,7 +254,10 @@ var _ = Describe("Broker", func() {
 		It("returns the deprovisioned service spec", func() {
 			b := broker.New(validConfig, &mocks.FakeProvider{}, lager.NewLogger("logger"))
 			Expect(b.Deprovision(context.Background(), "instanceid", validDeprovisionDetails, true)).
-				To(Equal(brokerapi.DeprovisionServiceSpec{IsAsync: true}))
+				To(Equal(brokerapi.DeprovisionServiceSpec{
+					IsAsync:       true,
+					OperationData: broker.Operation{Action: broker.ActionDeprovisioning}.String(),
+				}))
 		})
 	})
 
@@ -261,7 +267,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			Expect(b.LastOperation(context.Background(), "instanceid", "tellmeaboutprovision")).
+			Expect(b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)).
 				To(Equal(brokerapi.LastOperation{
 					State:       brokerapi.Succeeded,
 					Description: "i love brokers",
@@ -273,7 +279,7 @@ var _ = Describe("Broker", func() {
 			logger := lager.NewLogger("logger")
 			b := broker.New(validConfig, fakeProvider, logger)
 
-			b.LastOperation(context.Background(), "instanceid", "plztellme")
+			b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)
 
 			Expect(fakeProvider.GetStateCallCount()).To(Equal(1))
 			receivedContext, _ := fakeProvider.GetStateArgsForCall(0)
@@ -289,7 +295,7 @@ var _ = Describe("Broker", func() {
 			logger.RegisterSink(lager.NewWriterSink(log, lager.DEBUG))
 			b := broker.New(validConfig, &mocks.FakeProvider{}, logger)
 
-			b.LastOperation(context.Background(), "instanceid", "tellmeaboutprovision")
+			b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)
 
 			Expect(log).To(gbytes.Say("last-operation"))
 		})
@@ -299,19 +305,77 @@ var _ = Describe("Broker", func() {
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 			fakeProvider.GetStateReturns("", "", errors.New("foobar"))
 
-			_, err := b.LastOperation(context.Background(), "myinstance", "opdata")
+			_, err := b.LastOperation(context.Background(), "myinstance", `{"action": "provisioning"}`)
 
 			Expect(err).To(MatchError("error getting state for myinstance: foobar"))
 		})
 
-		It("errors if the instance doesn't exist", func() {
+		It("accepts empty operation data temporarily", func() {
 			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-			fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
 
-			_, err := b.LastOperation(context.Background(), "myinstance", "opdata")
+			_, err := b.LastOperation(context.Background(), "instanceid", "")
+			Expect(err).ToNot(HaveOccurred())
+		})
 
-			Expect(err).To(MatchError("instance does not exist"))
+		It("returns an error if last operation data is not json", func() {
+			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+			_, err := b.LastOperation(context.Background(), "instanceid", "I am not JSON")
+			Expect(err).To(MatchError("invalid operation data: I am not JSON"))
+		})
+
+		It("returns an error if last operation data does not contain an action", func() {
+			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+			_, err := b.LastOperation(context.Background(), "instanceid", "{}")
+			Expect(err).To(MatchError("invalid operation, action parameter is empty: {}"))
+		})
+
+		Context("When provisioning", func() {
+			It("returns ErrInstanceDoesNotExist when instance does not exist", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+
+				_, err := b.LastOperation(context.Background(), "myinstance", `{"action": "provisioning"}`)
+				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(0))
+				Expect(err).To(MatchError(brokerapi.ErrInstanceDoesNotExist))
+			})
+		})
+
+		Context("When deprovisioning", func() {
+			It("deletes the cache parameter group if the instance doesn't exist and returns ErrInstanceDoesNotExist", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				ctx := context.Background()
+				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
+
+				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(1))
+				receivedContext, receivedInstanceID := fakeProvider.DeleteCacheParameterGroupArgsForCall(0)
+				_, hasDeadline := receivedContext.Deadline()
+				Expect(hasDeadline).To(BeTrue())
+				Expect(receivedInstanceID).To(Equal("myinstance"))
+				Expect(err).To(MatchError(brokerapi.ErrInstanceDoesNotExist))
+			})
+
+			It("returns an error if deleting the cache parameter group fails", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				deleteError := errors.New("this is an error")
+				fakeProvider.DeleteCacheParameterGroupReturns(deleteError)
+				ctx := context.Background()
+				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
+
+				Expect(err).To(MatchError("error deleting parameter group myinstance: this is an error"))
+			})
 		})
 
 		It("logs an error and reports 'in progress' if it receives an unknown state from the provider", func() {
@@ -322,10 +386,11 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GetStateReturns("some-unknown-state", "", nil)
 			b := broker.New(validConfig, fakeProvider, logger)
 
-			b.LastOperation(context.Background(), "instanceid", "tellmeaboutprovision")
+			b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)
 
 			Expect(log).To(gbytes.Say("Unknown service state: some-unknown-state"))
 		})
+
 	})
 
 	Describe("state mapping from AWS to brokerapi package", func() {

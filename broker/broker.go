@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -17,6 +18,17 @@ type Broker struct {
 	logger   lager.Logger
 }
 
+// Operation is the operation data passed back by the provision/deprovision/update calls and received by the last
+// operation call
+type Operation struct {
+	Action string `json:"action"`
+}
+
+func (o Operation) String() string {
+	b, _ := json.Marshal(o)
+	return string(b)
+}
+
 // New creates a new broker instance
 func New(config Config, provider Provider, logger lager.Logger) *Broker {
 	return &Broker{
@@ -25,6 +37,13 @@ func New(config Config, provider Provider, logger lager.Logger) *Broker {
 		logger:   logger,
 	}
 }
+
+// Possible actions in the operation data
+const (
+	ActionProvisioning   = "provisioning"
+	ActionDeprovisioning = "deprovisioning"
+	ActionUpdating       = "updating"
+)
 
 // Services returns with the provided services
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
@@ -82,8 +101,10 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		"details":            details,
 		"accepts-incomplete": asyncAllowed,
 	})
-
-	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
+	return brokerapi.ProvisionedServiceSpec{
+		IsAsync:       true,
+		OperationData: Operation{Action: ActionProvisioning}.String(),
+	}, nil
 }
 
 // Update modifies an existing service instance
@@ -97,8 +118,10 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 	if !asyncAllowed {
 		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrAsyncRequired
 	}
-
-	return brokerapi.UpdateServiceSpec{IsAsync: true}, errors.New("notimp")
+	return brokerapi.UpdateServiceSpec{
+		IsAsync:       true,
+		OperationData: Operation{Action: ActionUpdating}.String(),
+	}, errors.New("notimp")
 }
 
 // Deprovision deletes a service instance
@@ -127,7 +150,10 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 		"accepts-incomplete": asyncAllowed,
 	})
 
-	return brokerapi.DeprovisionServiceSpec{IsAsync: true}, nil
+	return brokerapi.DeprovisionServiceSpec{
+		IsAsync:       true,
+		OperationData: Operation{Action: ActionDeprovisioning}.String(),
+	}, nil
 }
 
 // Bind binds an application and a service instance
@@ -162,8 +188,20 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 // LastOperation returns with the last known state of the given service instance
 func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData string) (brokerapi.LastOperation, error) {
 	b.logger.Debug("last-operation", lager.Data{
-		"instance-id": instanceID,
+		"instance-id":    instanceID,
+		"operation-data": operationData,
 	})
+
+	var operation Operation
+	if operationData != "" {
+		err := json.Unmarshal([]byte(operationData), &operation)
+		if err != nil {
+			return brokerapi.LastOperation{}, fmt.Errorf("invalid operation data: %s", operationData)
+		}
+		if operation.Action == "" {
+			return brokerapi.LastOperation{}, fmt.Errorf("invalid operation, action parameter is empty: %s", operationData)
+		}
+	}
 
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFunc()
@@ -174,6 +212,12 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 	}
 
 	if state == NonExisting {
+		if operation.Action == ActionDeprovisioning {
+			err = b.provider.DeleteCacheParameterGroup(providerCtx, instanceID)
+			if err != nil {
+				return brokerapi.LastOperation{}, fmt.Errorf("error deleting parameter group %s: %s", instanceID, err)
+			}
+		}
 		return brokerapi.LastOperation{}, brokerapi.ErrInstanceDoesNotExist
 	}
 

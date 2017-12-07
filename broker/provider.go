@@ -25,6 +25,7 @@ type Provider interface {
 	GetState(ctx context.Context, instanceID string) (ServiceState, string, error)
 	GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*Credentials, error)
 	RevokeCredentials(ctx context.Context, instanceID, bindingID string) error
+	DeleteCacheParameterGroup(ctx context.Context, instanceID string) error
 }
 
 // Credentials are the connection parameters for Redis clients
