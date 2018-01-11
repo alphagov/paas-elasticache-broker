@@ -10,7 +10,7 @@ A CloudFoundry service broker for AWS Elasticache services. Currently only Redis
   ```
 - Create an ElastiCache subnet group from e.g. the AWS web console.
   This group must have at least one subnet for your Redis instances to use.
-- Create an EC2 security group with TCP ingress for ports 3306-5432 with the
+- Create an EC2 security group with TCP ingress for port 6379 with the
   CIDR of any subnet in the subnet group configured above.
 - Copy the example config from the blackbox tests
   ```
@@ -92,7 +92,7 @@ Plan config example:
 
 The plan config keys should be the same as the service plan ids.
 
-The relevant structs can be found in the [config.go](blobs/broker/config.go) file.
+The relevant structs can be found in the [config.go](broker/config.go) file.
 The broker catalog structs can be found in the [pivotal-cf/brokerapi](https://github.com/pivotal-cf/brokerapi/blob/master/catalog.go) project.
 
 ## Client credentials
