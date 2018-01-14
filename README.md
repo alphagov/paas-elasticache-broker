@@ -12,6 +12,7 @@ A CloudFoundry service broker for AWS Elasticache services. Currently only Redis
   This group must have at least one subnet for your Redis instances to use.
 - Create an EC2 security group with TCP ingress for port 6379 with the
   CIDR of any subnet in the subnet group configured above.
+- Create an IAM role or user with necessary permissions; see [example policy](iam-policy.json)
 - Copy the example config from the blackbox tests
   ```
   cd $GOPATH/src/github.com/alphagov/paas-elasticache-broker
@@ -59,6 +60,7 @@ Broker catalog example:
       "name": "redis",
       "description": "AWS ElastiCache Redis service",
       "plan_updateable": true,
+      "bindable": true,
       "plans": [
         {
           "id": "94767b71-2b9c-4960-a4f8-77b81a96f7e0",
