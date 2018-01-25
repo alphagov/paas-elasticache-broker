@@ -12,7 +12,7 @@ A CloudFoundry service broker for AWS Elasticache services. Currently only Redis
   This group must have at least one subnet for your Redis instances to use.
 - Create an EC2 security group with TCP ingress for port 6379 with the
   CIDR of any subnet in the subnet group configured above.
-- Create an IAM role or user with necessary permissions; see [example policy](iam-policy.json)
+- Create an IAM role or user with necessary permissions; see [example policy](#example-iam-policy)
 - Copy the example config from the blackbox tests
   ```
   cd $GOPATH/src/github.com/alphagov/paas-elasticache-broker
@@ -114,3 +114,27 @@ When binding a service instance to an application the *Bind* call returns the fo
 Using TLS is mandatory in the clients.
 
 The password will be the same for all bindings as the ElastiCache Redis replication group has only one password which can't be changed after the instance is created. This also means we are not able to revoke the access when an application is unbound.
+
+## Example IAM policy
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "elasticache:CreateReplicationGroup",
+        "elasticache:DescribeReplicationGroups",
+        "elasticache:DeleteReplicationGroup",
+        "elasticache:CreateCacheParameterGroup",
+        "elasticache:ModifyCacheParameterGroup",
+        "elasticache:DeleteCacheParameterGroup"
+      ],
+      "Resource": [
+        "*"
+      ]
+    }
+  ]
+}
+```
