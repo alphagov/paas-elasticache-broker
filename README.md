@@ -128,6 +128,7 @@ The password will be the same for all bindings as the ElastiCache Redis replicat
         "elasticache:DescribeReplicationGroups",
         "elasticache:DeleteReplicationGroup",
         "elasticache:CreateCacheParameterGroup",
+        "elasticache:DescribeCacheParameterGroups",
         "elasticache:ModifyCacheParameterGroup",
         "elasticache:DeleteCacheParameterGroup"
       ],

@@ -16,4 +16,5 @@ type ElastiCache interface {
 	DeleteReplicationGroupWithContext(ctx aws.Context, input *elasticache.DeleteReplicationGroupInput, opts ...request.Option) (*elasticache.DeleteReplicationGroupOutput, error)
 	DescribeReplicationGroupsWithContext(ctx aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error)
 	ModifyCacheParameterGroupWithContext(ctx aws.Context, input *elasticache.ModifyCacheParameterGroupInput, opts ...request.Option) (*elasticache.CacheParameterGroupNameMessage, error)
+	DescribeCacheParameterGroupsWithContext(ctx aws.Context, input *elasticache.DescribeCacheParameterGroupsInput, opts ...request.Option) (*elasticache.DescribeCacheParameterGroupsOutput, error)
 }

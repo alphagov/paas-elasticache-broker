@@ -40,7 +40,8 @@ var _ = Describe("Broker", func() {
 			},
 			PlanConfigs: map[string]broker.PlanConfig{
 				"plan1": broker.PlanConfig{
-					InstanceType: "t2.micro",
+					InstanceType:            "t2.micro",
+					CacheParameterGroupName: "micro-volatile-lru",
 					Parameters: map[string]string{
 						"maxmemory-policy": "volatile-lru",
 						"reserved-memory":  "0",
@@ -116,7 +117,7 @@ var _ = Describe("Broker", func() {
 
 			expectedParams := broker.ProvisionParameters{
 				InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
-				CacheParameterGroupName:    "default.redis3.2",
+				CacheParameterGroupName:    "micro-volatile-lru",
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 				CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
 				PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
@@ -344,37 +345,18 @@ var _ = Describe("Broker", func() {
 				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
 
 				_, err := b.LastOperation(context.Background(), "myinstance", `{"action": "provisioning"}`)
-				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(0))
 				Expect(err).To(MatchError(brokerapi.ErrInstanceDoesNotExist))
 			})
 		})
 
 		Context("When deprovisioning", func() {
-			It("deletes the cache parameter group if the instance doesn't exist and returns ErrInstanceDoesNotExist", func() {
+			It("returns ErrInstanceDoesNotExist", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
 				ctx := context.Background()
 				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
-
-				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(1))
-				receivedContext, receivedInstanceID := fakeProvider.DeleteCacheParameterGroupArgsForCall(0)
-				_, hasDeadline := receivedContext.Deadline()
-				Expect(hasDeadline).To(BeTrue())
-				Expect(receivedInstanceID).To(Equal("myinstance"))
 				Expect(err).To(MatchError(brokerapi.ErrInstanceDoesNotExist))
-			})
-
-			It("returns an error if deleting the cache parameter group fails", func() {
-				fakeProvider := &mocks.FakeProvider{}
-				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
-				deleteError := errors.New("this is an error")
-				fakeProvider.DeleteCacheParameterGroupReturns(deleteError)
-				ctx := context.Background()
-				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
-
-				Expect(err).To(MatchError("error deleting parameter group myinstance: this is an error"))
 			})
 		})
 
