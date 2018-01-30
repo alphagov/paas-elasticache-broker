@@ -43,6 +43,7 @@ type PlanConfig struct {
 	ShardCount               int64             `json:"shard_count"`
 	SnapshotRetentionLimit   int64             `json:"snapshot_retention_limit"`
 	AutomaticFailoverEnabled bool              `json:"automatic_failover_enabled"`
+	CacheParameterGroupName  string            `json:"cache_parameter_group_name"`
 	Parameters               map[string]string `json:"parameters"`
 }
 

@@ -18,8 +18,20 @@
 				"plans": [
 					{
 						"id": "94767b71-2b9c-4960-a4f8-77b81a96f7e0",
-						"name": "micro",
-						"description": "Micro plan",
+						"name": "micro-volatile-ttl",
+						"description": "Micro plan with volatile-ttl eviction policy",
+						"free": false
+					},
+					{
+						"id": "94767b71-2b9c-4960-a4f8-77b81a96f7e1",
+						"name": "micro-allkeys-random",
+						"description": "Micro plan with allkeys-random eviction policy",
+						"free": false
+					},
+					{
+						"id": "94767b71-2b9c-4960-a4f8-77b81a96f7e2",
+						"name": "micro-allkeys-lru",
+						"description": "Micro plan with allkeys-lru eviction policy",
 						"free": false
 					}
 				]
@@ -34,8 +46,33 @@
 			"shard_count": 1,
 			"snapshot_retention_limit": 0,
 			"automatic_failover_enabled": false,
+			"cache_parameter_group_name": "micro-volatile-ttl",
 			"parameters": {
-				"maxmemory-policy": "volatile-lru",
+				"maxmemory-policy": "volatile-ttl",
+				"reserved-memory": "0"
+			}
+		},
+		"94767b71-2b9c-4960-a4f8-77b81a96f7e1": {
+			"instance_type": "cache.t2.micro",
+			"replicas_per_node_group": 0,
+			"shard_count": 1,
+			"snapshot_retention_limit": 0,
+			"automatic_failover_enabled": false,
+			"cache_parameter_group_name": "micro-allkeys-random",
+			"parameters": {
+				"maxmemory-policy": "allkeys-random",
+				"reserved-memory": "0"
+			}
+		},
+		"94767b71-2b9c-4960-a4f8-77b81a96f7e2": {
+			"instance_type": "cache.t2.micro",
+			"replicas_per_node_group": 0,
+			"shard_count": 1,
+			"snapshot_retention_limit": 0,
+			"automatic_failover_enabled": false,
+			"cache_parameter_group_name": "micro-allkeys-lru",
+			"parameters": {
+				"maxmemory-policy": "allkeys-lru",
 				"reserved-memory": "0"
 			}
 		}

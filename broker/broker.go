@@ -69,7 +69,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 
 	provisionParams := ProvisionParameters{
 		InstanceType:               planConfig.InstanceType,
-		CacheParameterGroupName:    "default.redis3.2",
+		CacheParameterGroupName:    planConfig.CacheParameterGroupName,
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
 		CacheSubnetGroupName:       b.config.CacheSubnetGroupName,
 		PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
@@ -212,12 +212,6 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 	}
 
 	if state == NonExisting {
-		if operation.Action == ActionDeprovisioning {
-			err = b.provider.DeleteCacheParameterGroup(providerCtx, instanceID)
-			if err != nil {
-				return brokerapi.LastOperation{}, fmt.Errorf("error deleting parameter group %s: %s", instanceID, err)
-			}
-		}
 		return brokerapi.LastOperation{}, brokerapi.ErrInstanceDoesNotExist
 	}
 

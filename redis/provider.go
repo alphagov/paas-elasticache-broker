@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"net/url"
 	"strings"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-elasticache-broker/broker"
@@ -37,10 +38,14 @@ func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID str
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 	_, err := p.aws.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
 		CacheParameterGroupFamily: aws.String("redis3.2"),
-		CacheParameterGroupName:   aws.String(replicationGroupID),
+		CacheParameterGroupName:   aws.String(params.CacheParameterGroupName),
 		Description:               aws.String("Created by Cloud Foundry"),
 	})
 	if err != nil {
+		return err
+	}
+
+	if err := p.waitForCacheParameterGroup(ctx, params.CacheParameterGroupName); err != nil {
 		return err
 	}
 
@@ -57,6 +62,43 @@ func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID str
 		CacheParameterGroupName: aws.String(replicationGroupID),
 	})
 	return err
+}
+
+func (p *Provider) waitForCacheParameterGroup(ctx context.Context, name string) error {
+	tries := 5
+	for {
+		tries--
+		if tries < 0 {
+			return fmt.Errorf("timed out waiting for CacheParameterGroup %s to be created", name)
+		}
+		_, err := p.aws.DescribeCacheParameterGroupsWithContext(ctx, &elasticache.DescribeCacheParameterGroupsInput{
+			CacheParameterGroupName: aws.String(name),
+		})
+		if err != nil {
+			if awsErr, ok := err.(awserr.Error); ok {
+				if awsErr.Code() == elasticache.ErrCodeCacheParameterGroupNotFoundFault {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+			}
+		}
+		return nil
+	}
+}
+
+func (p *Provider) createCacheParameterGroupIfMissing(ctx context.Context, instanceID string, params broker.ProvisionParameters) error {
+	_, err := p.aws.DescribeCacheParameterGroupsWithContext(ctx, &elasticache.DescribeCacheParameterGroupsInput{
+		CacheParameterGroupName: aws.String(params.CacheParameterGroupName),
+	})
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == elasticache.ErrCodeCacheParameterGroupNotFoundFault {
+				return p.createCacheParameterGroup(ctx, instanceID, params)
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func (p *Provider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
@@ -78,12 +120,10 @@ func (p *Provider) DeleteCacheParameterGroup(ctx context.Context, instanceID str
 func (p *Provider) Provision(ctx context.Context, instanceID string, params broker.ProvisionParameters) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
-	err := p.createCacheParameterGroup(ctx, instanceID, params)
+	err := p.createCacheParameterGroupIfMissing(ctx, instanceID, params)
 	if err != nil {
 		return err
 	}
-
-	cacheParameterGroupName := replicationGroupID
 
 	input := &elasticache.CreateReplicationGroupInput{
 		Tags: []*elasticache.Tag{},
@@ -92,7 +132,7 @@ func (p *Provider) Provision(ctx context.Context, instanceID string, params brok
 		AuthToken:                   aws.String(GenerateAuthToken(p.authTokenSeed, instanceID)),
 		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
 		CacheNodeType:               aws.String(params.InstanceType),
-		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
+		CacheParameterGroupName:     aws.String(params.CacheParameterGroupName),
 		SecurityGroupIds:            aws.StringSlice(params.SecurityGroupIds),
 		CacheSubnetGroupName:        aws.String(params.CacheSubnetGroupName),
 		Engine:                      aws.String("redis"),

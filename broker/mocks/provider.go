@@ -79,18 +79,6 @@ type FakeProvider struct {
 	revokeCredentialsReturnsOnCall map[int]struct {
 		result1 error
 	}
-	DeleteCacheParameterGroupStub        func(ctx context.Context, instanceID string) error
-	deleteCacheParameterGroupMutex       sync.RWMutex
-	deleteCacheParameterGroupArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
-	}
-	deleteCacheParameterGroupReturns struct {
-		result1 error
-	}
-	deleteCacheParameterGroupReturnsOnCall map[int]struct {
-		result1 error
-	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -353,55 +341,6 @@ func (fake *FakeProvider) RevokeCredentialsReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeProvider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
-	fake.deleteCacheParameterGroupMutex.Lock()
-	ret, specificReturn := fake.deleteCacheParameterGroupReturnsOnCall[len(fake.deleteCacheParameterGroupArgsForCall)]
-	fake.deleteCacheParameterGroupArgsForCall = append(fake.deleteCacheParameterGroupArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-	}{ctx, instanceID})
-	fake.recordInvocation("DeleteCacheParameterGroup", []interface{}{ctx, instanceID})
-	fake.deleteCacheParameterGroupMutex.Unlock()
-	if fake.DeleteCacheParameterGroupStub != nil {
-		return fake.DeleteCacheParameterGroupStub(ctx, instanceID)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.deleteCacheParameterGroupReturns.result1
-}
-
-func (fake *FakeProvider) DeleteCacheParameterGroupCallCount() int {
-	fake.deleteCacheParameterGroupMutex.RLock()
-	defer fake.deleteCacheParameterGroupMutex.RUnlock()
-	return len(fake.deleteCacheParameterGroupArgsForCall)
-}
-
-func (fake *FakeProvider) DeleteCacheParameterGroupArgsForCall(i int) (context.Context, string) {
-	fake.deleteCacheParameterGroupMutex.RLock()
-	defer fake.deleteCacheParameterGroupMutex.RUnlock()
-	return fake.deleteCacheParameterGroupArgsForCall[i].ctx, fake.deleteCacheParameterGroupArgsForCall[i].instanceID
-}
-
-func (fake *FakeProvider) DeleteCacheParameterGroupReturns(result1 error) {
-	fake.DeleteCacheParameterGroupStub = nil
-	fake.deleteCacheParameterGroupReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeProvider) DeleteCacheParameterGroupReturnsOnCall(i int, result1 error) {
-	fake.DeleteCacheParameterGroupStub = nil
-	if fake.deleteCacheParameterGroupReturnsOnCall == nil {
-		fake.deleteCacheParameterGroupReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.deleteCacheParameterGroupReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
 func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -415,8 +354,6 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.generateCredentialsMutex.RUnlock()
 	fake.revokeCredentialsMutex.RLock()
 	defer fake.revokeCredentialsMutex.RUnlock()
-	fake.deleteCacheParameterGroupMutex.RLock()
-	defer fake.deleteCacheParameterGroupMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

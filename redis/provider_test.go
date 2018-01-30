@@ -31,25 +31,32 @@ var _ = Describe("Provider", func() {
 	})
 
 	Context("when provisioning", func() {
-		It("creates a cache parameter group and sets the parameters", func() {
+		It("creates a cache parameter group and sets the parameters if missing", func() {
 			replicationGroupID := "cf-qwkec4pxhft6q"
 			instanceID := "foobar"
 
 			ctx := context.Background()
 
-			provider.Provision(ctx, instanceID, broker.ProvisionParameters{
+			describeErr := awserr.New(elasticache.ErrCodeCacheParameterGroupNotFoundFault, "cache parameter group not found", nil)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(1, nil, nil)
+
+			err := provider.Provision(ctx, instanceID, broker.ProvisionParameters{
+				CacheParameterGroupName: "micro-volatile-lru",
 				Parameters: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
 			})
+			Expect(err).ToNot(HaveOccurred())
 
+			Expect(mockElasticache.DescribeCacheParameterGroupsWithContextCallCount()).To(Equal(2))
 			Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(1))
 			receivedCtx, receivedInput, _ := mockElasticache.CreateCacheParameterGroupWithContextArgsForCall(0)
 			Expect(receivedCtx).To(Equal(ctx))
 			Expect(receivedInput).To(Equal(&elasticache.CreateCacheParameterGroupInput{
 				CacheParameterGroupFamily: aws.String("redis3.2"),
-				CacheParameterGroupName:   aws.String(replicationGroupID),
+				CacheParameterGroupName:   aws.String("micro-volatile-lru"),
 				Description:               aws.String("Created by Cloud Foundry"),
 			}))
 
@@ -69,7 +76,46 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
+		It("does not create a cache parameter group when it already exists", func() {
+			instanceID := "foobar"
+
+			ctx := context.Background()
+
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturns(&elasticache.DescribeCacheParameterGroupsOutput{
+				CacheParameterGroups: []*elasticache.CacheParameterGroup{
+					{},
+				},
+			}, nil)
+
+			err := provider.Provision(ctx, instanceID, broker.ProvisionParameters{
+				CacheParameterGroupName: "micro-volatile-lru",
+				Parameters: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(mockElasticache.DescribeCacheParameterGroupsWithContextCallCount()).To(Equal(1))
+			Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(0))
+			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(0))
+		})
+
+		It("handles errors during checking for parameter group existance", func() {
+			describeErr := errors.New("err while describing")
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
+
+			provisionErr := provider.Provision(context.Background(), "foobar", broker.ProvisionParameters{})
+			Expect(provisionErr).To(MatchError(describeErr))
+
+			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(0))
+			Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(0))
+		})
+
 		It("handles errors during parameter group creation", func() {
+			describeErr := awserr.New(elasticache.ErrCodeCacheParameterGroupNotFoundFault, "cache parameter group not found", nil)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(1, nil, nil)
+
 			createErr := errors.New("some error")
 			mockElasticache.CreateCacheParameterGroupWithContextReturnsOnCall(0, nil, createErr)
 
@@ -81,6 +127,10 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("handles errors during parameter group update", func() {
+			describeErr := awserr.New(elasticache.ErrCodeCacheParameterGroupNotFoundFault, "cache parameter group not found", nil)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(1, nil, nil)
+
 			modifyErr := errors.New("some error")
 			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, modifyErr)
 
@@ -92,12 +142,11 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("creates the replication group", func() {
-			replicationGroupID := "cf-qwkec4pxhft6q"
 			ctx := context.Background()
 			instanceID := "foobar"
 			params := broker.ProvisionParameters{
 				InstanceType:               "test instance type",
-				CacheParameterGroupName:    replicationGroupID,
+				CacheParameterGroupName:    "test-param-group-1",
 				SecurityGroupIds:           []string{"test sg1"},
 				CacheSubnetGroupName:       "test subnet group",
 				PreferredMaintenanceWindow: "test maintenance window",
@@ -122,14 +171,14 @@ var _ = Describe("Provider", func() {
 				AuthToken:                   aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
 				AutomaticFailoverEnabled:    aws.Bool(true),
 				CacheNodeType:               aws.String("test instance type"),
-				CacheParameterGroupName:     aws.String(replicationGroupID),
+				CacheParameterGroupName:     aws.String("test-param-group-1"),
 				SecurityGroupIds:            aws.StringSlice([]string{"test sg1"}),
 				CacheSubnetGroupName:        aws.String("test subnet group"),
 				Engine:                      aws.String("redis"),
 				EngineVersion:               aws.String("3.2.6"),
 				PreferredMaintenanceWindow:  aws.String("test maintenance window"),
 				ReplicationGroupDescription: aws.String("test desc"),
-				ReplicationGroupId:          aws.String(replicationGroupID),
+				ReplicationGroupId:          aws.String("cf-qwkec4pxhft6q"),
 				NumNodeGroups:               aws.Int64(1),
 				NumCacheClusters:            aws.Int64(3),
 			}))
