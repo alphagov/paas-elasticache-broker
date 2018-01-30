@@ -41,6 +41,7 @@ var _ = Describe("Broker", func() {
 			PlanConfigs: map[string]broker.PlanConfig{
 				"plan1": broker.PlanConfig{
 					InstanceType: "t2.micro",
+					ShardCount:   1,
 					Parameters: map[string]string{
 						"maxmemory-policy": "volatile-lru",
 						"reserved-memory":  "0",
@@ -124,7 +125,6 @@ var _ = Describe("Broker", func() {
 				ShardCount:                 1,
 				SnapshotRetentionLimit:     0,
 				Description:                "Cloud Foundry service",
-				AutomaticFailoverEnabled:   false,
 				Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
 				Tags: map[string]string{
 					"created-by":      validConfig.BrokerName,

@@ -51,6 +51,10 @@ func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID str
 			ParameterValue: aws.String(paramValue),
 		})
 	}
+	pgParams = append(pgParams, &elasticache.ParameterNameValue{
+		ParameterName:  aws.String("cluster-enabled"),
+		ParameterValue: aws.String("yes"),
+	})
 
 	_, err = p.aws.ModifyCacheParameterGroupWithContext(ctx, &elasticache.ModifyCacheParameterGroupInput{
 		ParameterNameValues:     pgParams,
@@ -90,7 +94,7 @@ func (p *Provider) Provision(ctx context.Context, instanceID string, params brok
 		AtRestEncryptionEnabled:     aws.Bool(true),
 		TransitEncryptionEnabled:    aws.Bool(true),
 		AuthToken:                   aws.String(GenerateAuthToken(p.authTokenSeed, instanceID)),
-		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
+		AutomaticFailoverEnabled:    aws.Bool(true),
 		CacheNodeType:               aws.String(params.InstanceType),
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
 		SecurityGroupIds:            aws.StringSlice(params.SecurityGroupIds),
@@ -101,6 +105,9 @@ func (p *Provider) Provision(ctx context.Context, instanceID string, params brok
 		ReplicationGroupDescription: aws.String(params.Description),
 		ReplicationGroupId:          aws.String(replicationGroupID),
 		NumNodeGroups:               aws.Int64(params.ShardCount),
+		ReplicasPerNodeGroup:        aws.Int64(params.ReplicasPerNodeGroup),
+		SnapshotRetentionLimit:      aws.Int64(params.SnapshotRetentionLimit),
+		SnapshotWindow:              aws.String("02:00-05:00"),
 	}
 
 	for tagName, tagValue := range params.Tags {
@@ -108,16 +115,6 @@ func (p *Provider) Provision(ctx context.Context, instanceID string, params brok
 			Key:   aws.String(tagName),
 			Value: aws.String(tagValue),
 		})
-	}
-
-	if params.ShardCount == 1 {
-		input.SetNumCacheClusters(params.ReplicasPerNodeGroup + 1)
-	} else {
-		input.SetReplicasPerNodeGroup(params.ReplicasPerNodeGroup)
-	}
-
-	if params.SnapshotRetentionLimit > 0 {
-		input.SetSnapshotRetentionLimit(params.SnapshotRetentionLimit)
 	}
 
 	_, err = p.aws.CreateReplicationGroupWithContext(ctx, input)
