@@ -38,7 +38,8 @@ var _ = Describe("Provider", func() {
 			ctx := context.Background()
 
 			describeErr := awserr.New(elasticache.ErrCodeCacheParameterGroupNotFoundFault, "cache parameter group not found", nil)
-			mockElasticache.DescribeCacheParameterGroupsWithContextReturns(nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(1, nil, nil)
 
 			err := provider.Provision(ctx, instanceID, broker.ProvisionParameters{
 				CacheParameterGroupName: "micro-volatile-lru",
@@ -49,7 +50,7 @@ var _ = Describe("Provider", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(mockElasticache.DescribeCacheParameterGroupsWithContextCallCount()).To(Equal(1))
+			Expect(mockElasticache.DescribeCacheParameterGroupsWithContextCallCount()).To(Equal(2))
 			Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(1))
 			receivedCtx, receivedInput, _ := mockElasticache.CreateCacheParameterGroupWithContextArgsForCall(0)
 			Expect(receivedCtx).To(Equal(ctx))
@@ -101,7 +102,7 @@ var _ = Describe("Provider", func() {
 
 		It("handles errors during checking for parameter group existance", func() {
 			describeErr := errors.New("err while describing")
-			mockElasticache.DescribeCacheParameterGroupsWithContextReturns(nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
 
 			provisionErr := provider.Provision(context.Background(), "foobar", broker.ProvisionParameters{})
 			Expect(provisionErr).To(MatchError(describeErr))
@@ -112,7 +113,8 @@ var _ = Describe("Provider", func() {
 
 		It("handles errors during parameter group creation", func() {
 			describeErr := awserr.New(elasticache.ErrCodeCacheParameterGroupNotFoundFault, "cache parameter group not found", nil)
-			mockElasticache.DescribeCacheParameterGroupsWithContextReturns(nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(1, nil, nil)
 
 			createErr := errors.New("some error")
 			mockElasticache.CreateCacheParameterGroupWithContextReturnsOnCall(0, nil, createErr)
@@ -126,7 +128,8 @@ var _ = Describe("Provider", func() {
 
 		It("handles errors during parameter group update", func() {
 			describeErr := awserr.New(elasticache.ErrCodeCacheParameterGroupNotFoundFault, "cache parameter group not found", nil)
-			mockElasticache.DescribeCacheParameterGroupsWithContextReturns(nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(0, nil, describeErr)
+			mockElasticache.DescribeCacheParameterGroupsWithContextReturnsOnCall(1, nil, nil)
 
 			modifyErr := errors.New("some error")
 			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, modifyErr)

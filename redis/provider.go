@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"net/url"
 	"strings"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-elasticache-broker/broker"
@@ -44,6 +45,10 @@ func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID str
 		return err
 	}
 
+	if err := p.waitForCacheParameterGroup(ctx, params.CacheParameterGroupName); err != nil {
+		return err
+	}
+
 	pgParams := []*elasticache.ParameterNameValue{}
 	for paramName, paramValue := range params.Parameters {
 		pgParams = append(pgParams, &elasticache.ParameterNameValue{
@@ -57,6 +62,28 @@ func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID str
 		CacheParameterGroupName: aws.String(replicationGroupID),
 	})
 	return err
+}
+
+func (p *Provider) waitForCacheParameterGroup(ctx context.Context, name string) error {
+	tries := 5
+	for {
+		tries--
+		if tries < 0 {
+			return fmt.Errorf("timed out waiting for CacheParameterGroup %s to be created", name)
+		}
+		_, err := p.aws.DescribeCacheParameterGroupsWithContext(ctx, &elasticache.DescribeCacheParameterGroupsInput{
+			CacheParameterGroupName: aws.String(name),
+		})
+		if err != nil {
+			if awsErr, ok := err.(awserr.Error); ok {
+				if awsErr.Code() == elasticache.ErrCodeCacheParameterGroupNotFoundFault {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+			}
+		}
+		return nil
+	}
 }
 
 func (p *Provider) createCacheParameterGroupIfMissing(ctx context.Context, instanceID string, params broker.ProvisionParameters) error {
