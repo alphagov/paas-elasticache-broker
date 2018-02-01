@@ -59,6 +59,10 @@ var _ = Describe("Provider", func() {
 			Expect(paramGroupInput.CacheParameterGroupName).To(Equal(aws.String(replicationGroupID)))
 			Expect(paramGroupInput.ParameterNameValues).To(ConsistOf([]*elasticache.ParameterNameValue{
 				{
+					ParameterName:  aws.String("cluster-enabled"),
+					ParameterValue: aws.String("yes"),
+				},
+				{
 					ParameterName:  aws.String("key1"),
 					ParameterValue: aws.String("value1"),
 				},
@@ -101,11 +105,10 @@ var _ = Describe("Provider", func() {
 				SecurityGroupIds:           []string{"test sg1"},
 				CacheSubnetGroupName:       "test subnet group",
 				PreferredMaintenanceWindow: "test maintenance window",
-				ReplicasPerNodeGroup:       2,
+				ReplicasPerNodeGroup:       0,
 				ShardCount:                 1,
-				SnapshotRetentionLimit:     0,
+				SnapshotRetentionLimit:     7,
 				Description:                "test desc",
-				AutomaticFailoverEnabled:   true,
 				Parameters:                 map[string]string{},
 				Tags:                       map[string]string{},
 			}
@@ -130,8 +133,10 @@ var _ = Describe("Provider", func() {
 				PreferredMaintenanceWindow:  aws.String("test maintenance window"),
 				ReplicationGroupDescription: aws.String("test desc"),
 				ReplicationGroupId:          aws.String(replicationGroupID),
+				ReplicasPerNodeGroup:        aws.Int64(0),
 				NumNodeGroups:               aws.Int64(1),
-				NumCacheClusters:            aws.Int64(3),
+				SnapshotRetentionLimit:      aws.Int64(7),
+				SnapshotWindow:              aws.String("02:00-05:00"),
 			}))
 		})
 
@@ -145,28 +150,6 @@ var _ = Describe("Provider", func() {
 				&elasticache.Tag{Key: aws.String("tag1"), Value: aws.String("tag value1")},
 				&elasticache.Tag{Key: aws.String("tag2"), Value: aws.String("tag value2")},
 			}))
-		})
-
-		It("uses ReplicasPerNodeGroup instead of NumCacheClusters if shard count is greater than one", func() {
-			params := broker.ProvisionParameters{
-				ShardCount:           2,
-				ReplicasPerNodeGroup: 3,
-			}
-			provider.Provision(context.Background(), "foobar", params)
-
-			_, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
-			Expect(passedInput.NumCacheClusters).To(BeNil())
-			Expect(passedInput.ReplicasPerNodeGroup).To(Equal(aws.Int64(3)))
-		})
-
-		It("sets the snapshot retention if it's greater than zero", func() {
-			params := broker.ProvisionParameters{
-				SnapshotRetentionLimit: 1,
-			}
-			provider.Provision(context.Background(), "foobar", params)
-
-			_, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
-			Expect(passedInput.SnapshotRetentionLimit).To(Equal(aws.Int64(1)))
 		})
 
 		It("handles errors during replication group creation", func() {
@@ -351,8 +334,8 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when cluster mode is disabled", func() {
-			It("should return with credentials", func() {
+		Context("when no configuration endpoint is provided (cluster mode is disabled)", func() {
+			It("should provide the primary endpoint in the credentials", func() {
 				replicationGroupID := "cf-qwkec4pxhft6q"
 
 				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
@@ -407,6 +390,60 @@ var _ = Describe("Provider", func() {
 				_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
 				Expect(err).To(HaveOccurred())
 			})
+		})
+
+		Context("when a configuration endpoint is provided (cluster mode is enabled)", func() {
+			It("should provide the configuration endpoint in the credentials", func() {
+				replicationGroupID := "cf-qwkec4pxhft6q"
+
+				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							ConfigurationEndpoint: &elasticache.Endpoint{
+								Address: aws.String("configuration-endpoint"),
+								Port:    aws.Int64(11211),
+							},
+						},
+					},
+				}
+				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+
+				instanceID := "foobar"
+				bindingID := "test-binding"
+				ctx := context.Background()
+
+				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(credentials).To(Equal(&broker.Credentials{
+					Host:       "configuration-endpoint",
+					Port:       11211,
+					Name:       "cf-qwkec4pxhft6q",
+					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
+					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@configuration-endpoint:11211",
+					TLSEnabled: true,
+				}))
+
+				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
+				passedCtx, passedInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
+					ReplicationGroupId: aws.String(replicationGroupID),
+				}))
+			})
+		})
+
+		It("should return error if zero node groups are returned", func() {
+			awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{
+						NodeGroups: []*elasticache.NodeGroup{},
+					},
+				},
+			}
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
+			Expect(err).To(HaveOccurred())
 		})
 
 		It("should return error if no replication groups are returned", func() {
