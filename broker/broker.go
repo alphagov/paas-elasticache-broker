@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"code.cloudfoundry.org/lager"
@@ -47,6 +48,13 @@ const (
 	ActionUpdating       = "updating"
 )
 
+// Sort providers.SnapshotInfo
+type ByCreateTime []providers.SnapshotInfo
+
+func (ct ByCreateTime) Len() int           { return len(ct) }
+func (ct ByCreateTime) Swap(i, j int)      { ct[i], ct[j] = ct[j], ct[i] }
+func (ct ByCreateTime) Less(i, j int) bool { return ct[i].CreateTime.After(ct[j].CreateTime) }
+
 // Services returns with the provided services
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 	return b.config.Catalog.Services
@@ -69,6 +77,49 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("service plan %s: %s", details.PlanID, err)
 	}
 
+	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelFunc()
+
+	cfProvisionParameters := CfProvisionParameters{}
+	if len(details.RawParameters) > 0 {
+		if err := json.Unmarshal(details.RawParameters, &cfProvisionParameters); err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+		if err := cfProvisionParameters.Validate(); err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+	}
+
+	var restoreFromSnapshotName *string
+	if cfProvisionParameters.RestoreFromLatestSnapshotOf != nil {
+		snapshots, err := b.provider.FindSnapshots(providerCtx, *cfProvisionParameters.RestoreFromLatestSnapshotOf)
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+		if len(snapshots) == 0 {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("No snapshots found for: %s", *cfProvisionParameters.RestoreFromLatestSnapshotOf)
+		}
+		sort.Sort(ByCreateTime(snapshots))
+		latestSnapshot := snapshots[0]
+
+		if snapshotSpaceId, ok := latestSnapshot.Tags["space-id"]; !ok || snapshotSpaceId != details.SpaceGUID {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+		}
+		if snapshotOrgId, ok := latestSnapshot.Tags["organization-id"]; !ok || snapshotOrgId != details.OrganizationGUID {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+		}
+		if snapshotPlanId, ok := latestSnapshot.Tags["plan-id"]; !ok || snapshotPlanId != details.PlanID {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
+		}
+
+		restoreFromSnapshotName = &snapshots[0].Name
+
+	}
+
 	provisionParams := providers.ProvisionParameters{
 		InstanceType:               planConfig.InstanceType,
 		CacheParameterGroupName:    "default.redis3.2",
@@ -78,6 +129,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		ReplicasPerNodeGroup:       planConfig.ReplicasPerNodeGroup,
 		ShardCount:                 planConfig.ShardCount,
 		SnapshotRetentionLimit:     planConfig.SnapshotRetentionLimit,
+		RestoreFromSnapshot:        restoreFromSnapshotName,
 		Description:                "Cloud Foundry service",
 		Parameters:                 planConfig.Parameters,
 		Tags: map[string]string{
@@ -89,9 +141,6 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 			"instance-id":     instanceID,
 		},
 	}
-
-	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
-	defer cancelFunc()
 
 	err = b.provider.Provision(providerCtx, instanceID, provisionParams)
 	if err != nil {

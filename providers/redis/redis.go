@@ -20,12 +20,15 @@ import (
 // Provider is the Redis broker provider
 type RedisProvider struct {
 	aws           providers.ElastiCache
+	awsAccountID  string
+	awsPartition  string
+	awsRegion     string
 	logger        lager.Logger
 	authTokenSeed string
 }
 
 // NewProvider creates a new Redis provider
-func NewProvider(elasticache providers.ElastiCache, logger lager.Logger, authTokenSeed string) *RedisProvider {
+func NewProvider(elasticache providers.ElastiCache, awsAccountID, awsPartition, awsRegion string, logger lager.Logger, authTokenSeed string) *RedisProvider {
 	return &RedisProvider{
 		aws:           elasticache,
 		logger:        logger,
@@ -108,6 +111,7 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		ReplicasPerNodeGroup:        aws.Int64(params.ReplicasPerNodeGroup),
 		SnapshotRetentionLimit:      aws.Int64(params.SnapshotRetentionLimit),
 		SnapshotWindow:              aws.String("02:00-05:00"),
+		SnapshotName:                params.RestoreFromSnapshot,
 	}
 
 	for tagName, tagValue := range params.Tags {
@@ -226,6 +230,58 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 // for a Redis service instance
 func (p *RedisProvider) RevokeCredentials(ctx context.Context, instanceID, bindingID string) error {
 	return nil
+}
+
+// FindSnapshots returns the list of snapshots found for a given instance ID
+func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([]providers.SnapshotInfo, error) {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	describeSnapshotsParams := &elasticache.DescribeSnapshotsInput{
+		ReplicationGroupId: aws.String(replicationGroupID),
+	}
+	snapshots := []*elasticache.Snapshot{}
+	err := p.aws.DescribeSnapshotsPagesWithContext(ctx, describeSnapshotsParams, func(page *elasticache.DescribeSnapshotsOutput, lastPage bool) bool {
+		snapshots = append(snapshots, page.Snapshots...)
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	snapshotInfos := []providers.SnapshotInfo{}
+	for _, snapshot := range snapshots {
+		if snapshot.SnapshotName == nil ||
+			len(snapshot.NodeSnapshots) == 0 ||
+			snapshot.NodeSnapshots[0].SnapshotCreateTime == nil {
+			return nil, fmt.Errorf("Invalid response from AWS: Missing values for snapshot for elasticache cluster %s", instanceID)
+		}
+		tagList, err := p.aws.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
+			ResourceName: aws.String(p.snapshotARN(*snapshot.SnapshotName)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		snapshotInfos = append(snapshotInfos, providers.SnapshotInfo{
+			Name:       *snapshot.SnapshotName,
+			CreateTime: *snapshot.NodeSnapshots[0].SnapshotCreateTime,
+			Tags:       tagsValues(tagList.TagList),
+		})
+	}
+	return snapshotInfos, nil
+}
+
+func (p *RedisProvider) snapshotARN(snapshotID string) string {
+	return fmt.Sprintf("arn:%s:elasticache:%s:%s:snapshot:%s", p.awsPartition, p.awsRegion, p.awsAccountID, snapshotID)
+}
+
+func tagsValues(elasticacheTags []*elasticache.Tag) map[string]string {
+	tags := map[string]string{}
+	if elasticacheTags == nil {
+		return tags
+	}
+	for _, t := range elasticacheTags {
+		tags[aws.StringValue(t.Key)] = aws.StringValue(t.Value)
+	}
+	return tags
 }
 
 // GenerateReplicationGroupName generates a valid ElastiCache replication group name

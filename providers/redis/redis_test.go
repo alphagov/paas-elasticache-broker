@@ -3,13 +3,16 @@ package redis_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/alphagov/paas-elasticache-broker/providers"
 	"github.com/alphagov/paas-elasticache-broker/providers/mocks"
 	. "github.com/alphagov/paas-elasticache-broker/providers/redis"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	uuid "github.com/satori/go.uuid"
 
@@ -27,7 +30,14 @@ var _ = Describe("Provider", func() {
 
 	BeforeEach(func() {
 		mockElasticache = &mocks.FakeElastiCache{}
-		provider = NewProvider(mockElasticache, lager.NewLogger("logger"), AuthTokenSeed)
+		provider = NewProvider(
+			mockElasticache,
+			"123456789012",
+			"aws",
+			"eu-west-1",
+			lager.NewLogger("logger"),
+			AuthTokenSeed,
+		)
 	})
 
 	Context("when provisioning", func() {
@@ -160,6 +170,56 @@ var _ = Describe("Provider", func() {
 			Expect(provisionErr).To(MatchError(createErr))
 		})
 
+		Context("when restoring from a snapshot", func() {
+			It("Passes the snapshot name to AWS", func() {
+				replicationGroupID := "cf-qwkec4pxhft6q"
+				snapshotToRestore := "automatic.cf-1234567890"
+
+				ctx := context.Background()
+				instanceID := "foobar"
+				params := providers.ProvisionParameters{
+					InstanceType:               "test instance type",
+					CacheParameterGroupName:    replicationGroupID,
+					SecurityGroupIds:           []string{"test sg1"},
+					CacheSubnetGroupName:       "test subnet group",
+					PreferredMaintenanceWindow: "test maintenance window",
+					ReplicasPerNodeGroup:       0,
+					ShardCount:                 1,
+					SnapshotRetentionLimit:     7,
+					RestoreFromSnapshot:        &snapshotToRestore,
+					Description:                "test desc",
+					Parameters:                 map[string]string{},
+					Tags:                       map[string]string{},
+				}
+				provisionErr := provider.Provision(ctx, instanceID, params)
+				Expect(provisionErr).NotTo(HaveOccurred())
+				Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(1))
+
+				passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(passedInput).To(Equal(&elasticache.CreateReplicationGroupInput{
+					Tags: []*elasticache.Tag{},
+					AtRestEncryptionEnabled:     aws.Bool(true),
+					TransitEncryptionEnabled:    aws.Bool(true),
+					AuthToken:                   aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+					AutomaticFailoverEnabled:    aws.Bool(true),
+					CacheNodeType:               aws.String("test instance type"),
+					CacheParameterGroupName:     aws.String(replicationGroupID),
+					SecurityGroupIds:            aws.StringSlice([]string{"test sg1"}),
+					CacheSubnetGroupName:        aws.String("test subnet group"),
+					Engine:                      aws.String("redis"),
+					EngineVersion:               aws.String("3.2.6"),
+					PreferredMaintenanceWindow:  aws.String("test maintenance window"),
+					ReplicationGroupDescription: aws.String("test desc"),
+					ReplicationGroupId:          aws.String(replicationGroupID),
+					ReplicasPerNodeGroup:        aws.Int64(0),
+					NumNodeGroups:               aws.Int64(1),
+					SnapshotRetentionLimit:      aws.Int64(7),
+					SnapshotWindow:              aws.String("02:00-05:00"),
+					SnapshotName:                aws.String(snapshotToRestore),
+				}))
+			})
+		})
 	})
 
 	Context("when deprovisioning", func() {
@@ -514,6 +574,177 @@ var _ = Describe("Provider", func() {
 			ctx := context.Background()
 			err := provider.RevokeCredentials(ctx, instanceID, bindingID)
 			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	Context("when listing existing snapshots", func() {
+		var (
+			describeSnapshotOutputToReturn []elasticache.DescribeSnapshotsOutput
+			errorToReturn                  error
+		)
+		BeforeEach(func() {
+			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{}
+			errorToReturn = nil
+
+			mockElasticache.ListTagsForResourceWithContextReturns(&elasticache.TagListMessage{}, nil)
+
+			mockElasticache.DescribeSnapshotsPagesWithContextStub =
+				func(ctx aws.Context, input *elasticache.DescribeSnapshotsInput,
+					fn func(*elasticache.DescribeSnapshotsOutput, bool) bool, opts ...request.Option) error {
+					for i, s := range describeSnapshotOutputToReturn {
+						continue_ := fn(&s, i == len(describeSnapshotOutputToReturn)-1)
+						if !continue_ {
+							break
+						}
+					}
+					return errorToReturn
+				}
+		})
+
+		It("returns the list of existing snapshots", func() {
+			instanceID := "foobar"
+
+			mockElasticache.ListTagsForResourceWithContextReturns(
+				&elasticache.TagListMessage{
+					TagList: []*elasticache.Tag{
+						&elasticache.Tag{
+							Key:   aws.String("Tag1"),
+							Value: aws.String("Val1"),
+						},
+						&elasticache.Tag{
+							Key:   aws.String("Tag2"),
+							Value: aws.String("Val2"),
+						},
+					},
+				},
+				nil,
+			)
+
+			now := time.Now()
+			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
+				elasticache.DescribeSnapshotsOutput{
+					Snapshots: []*elasticache.Snapshot{
+						&elasticache.Snapshot{
+							SnapshotName: aws.String("snapshot1"),
+							NodeSnapshots: []*elasticache.NodeSnapshot{
+								&elasticache.NodeSnapshot{
+									CacheClusterId:     &instanceID,
+									SnapshotCreateTime: aws.Time(now.Add(-2 * 24 * time.Hour)),
+								},
+							},
+						},
+						&elasticache.Snapshot{
+							SnapshotName: aws.String("snapshot2"),
+							NodeSnapshots: []*elasticache.NodeSnapshot{
+								&elasticache.NodeSnapshot{
+									CacheClusterId:     &instanceID,
+									SnapshotCreateTime: aws.Time(now.Add(-1 * 24 * time.Hour)),
+								},
+							},
+						},
+					},
+				},
+			}
+
+			ctx := context.Background()
+			snapshots, err := provider.FindSnapshots(ctx, instanceID)
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(snapshots).To(HaveLen(2))
+			Expect(snapshots).To(ConsistOf(
+				providers.SnapshotInfo{
+					Name:       "snapshot1",
+					CreateTime: now.Add(-2 * 24 * time.Hour),
+					Tags: map[string]string{
+						"Tag1": "Val1",
+						"Tag2": "Val2",
+					},
+				},
+				providers.SnapshotInfo{
+					Name:       "snapshot2",
+					CreateTime: now.Add(-1 * 24 * time.Hour),
+					Tags: map[string]string{
+						"Tag1": "Val1",
+						"Tag2": "Val2",
+					},
+				},
+			))
+		})
+
+		It("returns and empty list if there are no snapshots", func() {
+			instanceID := "foobar"
+
+			ctx := context.Background()
+			snapshots, err := provider.FindSnapshots(ctx, instanceID)
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(snapshots).To(HaveLen(0))
+		})
+
+		It("returns error if the call to AWS to list snapshots fails", func() {
+			instanceID := "foobar"
+
+			mockElasticache.DescribeSnapshotsPagesWithContextReturns(
+				fmt.Errorf("HORRIBLE ERROR DESCRIBING SNAPSHOTS"),
+			)
+
+			ctx := context.Background()
+			_, err := provider.FindSnapshots(ctx, instanceID)
+
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(fmt.Errorf("HORRIBLE ERROR DESCRIBING SNAPSHOTS")))
+		})
+
+		It("returns error if the call to AWS to list tags fails", func() {
+			instanceID := "foobar"
+
+			now := time.Now()
+			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
+				elasticache.DescribeSnapshotsOutput{
+					Snapshots: []*elasticache.Snapshot{
+
+						&elasticache.Snapshot{
+							SnapshotName: aws.String("snapshot1"),
+							NodeSnapshots: []*elasticache.NodeSnapshot{
+								&elasticache.NodeSnapshot{
+									CacheClusterId:     &instanceID,
+									SnapshotCreateTime: aws.Time(now.Add(-2 * 24 * time.Hour)),
+								},
+							},
+						},
+					},
+				},
+			}
+
+			mockElasticache.ListTagsForResourceWithContextReturns(
+				&elasticache.TagListMessage{},
+				fmt.Errorf("HORRIBLE ERROR LISTING TAGS"),
+			)
+
+			ctx := context.Background()
+			_, err := provider.FindSnapshots(ctx, instanceID)
+
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(fmt.Errorf("HORRIBLE ERROR LISTING TAGS")))
+		})
+		It("returns error if the snapshots miss some data", func() {
+			instanceID := "foobar"
+
+			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
+				elasticache.DescribeSnapshotsOutput{
+					Snapshots: []*elasticache.Snapshot{
+						&elasticache.Snapshot{},
+					},
+				},
+			}
+
+			ctx := context.Background()
+			_, err := provider.FindSnapshots(ctx, instanceID)
+
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(
+				ContainSubstring("Invalid response from AWS: Missing values for snapshot for elasticache cluster")),
+			)
 		})
 	})
 })

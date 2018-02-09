@@ -91,6 +91,20 @@ type FakeProvider struct {
 	deleteCacheParameterGroupReturnsOnCall map[int]struct {
 		result1 error
 	}
+	FindSnapshotsStub        func(ctx context.Context, instanceID string) ([]providers.SnapshotInfo, error)
+	findSnapshotsMutex       sync.RWMutex
+	findSnapshotsArgsForCall []struct {
+		ctx        context.Context
+		instanceID string
+	}
+	findSnapshotsReturns struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}
+	findSnapshotsReturnsOnCall map[int]struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -402,6 +416,58 @@ func (fake *FakeProvider) DeleteCacheParameterGroupReturnsOnCall(i int, result1 
 	}{result1}
 }
 
+func (fake *FakeProvider) FindSnapshots(ctx context.Context, instanceID string) ([]providers.SnapshotInfo, error) {
+	fake.findSnapshotsMutex.Lock()
+	ret, specificReturn := fake.findSnapshotsReturnsOnCall[len(fake.findSnapshotsArgsForCall)]
+	fake.findSnapshotsArgsForCall = append(fake.findSnapshotsArgsForCall, struct {
+		ctx        context.Context
+		instanceID string
+	}{ctx, instanceID})
+	fake.recordInvocation("FindSnapshots", []interface{}{ctx, instanceID})
+	fake.findSnapshotsMutex.Unlock()
+	if fake.FindSnapshotsStub != nil {
+		return fake.FindSnapshotsStub(ctx, instanceID)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fake.findSnapshotsReturns.result1, fake.findSnapshotsReturns.result2
+}
+
+func (fake *FakeProvider) FindSnapshotsCallCount() int {
+	fake.findSnapshotsMutex.RLock()
+	defer fake.findSnapshotsMutex.RUnlock()
+	return len(fake.findSnapshotsArgsForCall)
+}
+
+func (fake *FakeProvider) FindSnapshotsArgsForCall(i int) (context.Context, string) {
+	fake.findSnapshotsMutex.RLock()
+	defer fake.findSnapshotsMutex.RUnlock()
+	return fake.findSnapshotsArgsForCall[i].ctx, fake.findSnapshotsArgsForCall[i].instanceID
+}
+
+func (fake *FakeProvider) FindSnapshotsReturns(result1 []providers.SnapshotInfo, result2 error) {
+	fake.FindSnapshotsStub = nil
+	fake.findSnapshotsReturns = struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) FindSnapshotsReturnsOnCall(i int, result1 []providers.SnapshotInfo, result2 error) {
+	fake.FindSnapshotsStub = nil
+	if fake.findSnapshotsReturnsOnCall == nil {
+		fake.findSnapshotsReturnsOnCall = make(map[int]struct {
+			result1 []providers.SnapshotInfo
+			result2 error
+		})
+	}
+	fake.findSnapshotsReturnsOnCall[i] = struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -417,6 +483,8 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.revokeCredentialsMutex.RUnlock()
 	fake.deleteCacheParameterGroupMutex.RLock()
 	defer fake.deleteCacheParameterGroupMutex.RUnlock()
+	fake.findSnapshotsMutex.RLock()
+	defer fake.findSnapshotsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

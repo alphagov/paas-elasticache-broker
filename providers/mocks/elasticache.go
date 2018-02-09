@@ -101,6 +101,35 @@ type FakeElastiCache struct {
 		result1 *elasticache.CacheParameterGroupNameMessage
 		result2 error
 	}
+	DescribeSnapshotsPagesWithContextStub        func(ctx aws.Context, input *elasticache.DescribeSnapshotsInput, fn func(*elasticache.DescribeSnapshotsOutput, bool) bool, opts ...request.Option) error
+	describeSnapshotsPagesWithContextMutex       sync.RWMutex
+	describeSnapshotsPagesWithContextArgsForCall []struct {
+		ctx   aws.Context
+		input *elasticache.DescribeSnapshotsInput
+		fn    func(*elasticache.DescribeSnapshotsOutput, bool) bool
+		opts  []request.Option
+	}
+	describeSnapshotsPagesWithContextReturns struct {
+		result1 error
+	}
+	describeSnapshotsPagesWithContextReturnsOnCall map[int]struct {
+		result1 error
+	}
+	ListTagsForResourceWithContextStub        func(ctx aws.Context, input *elasticache.ListTagsForResourceInput, opts ...request.Option) (*elasticache.TagListMessage, error)
+	listTagsForResourceWithContextMutex       sync.RWMutex
+	listTagsForResourceWithContextArgsForCall []struct {
+		ctx   aws.Context
+		input *elasticache.ListTagsForResourceInput
+		opts  []request.Option
+	}
+	listTagsForResourceWithContextReturns struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}
+	listTagsForResourceWithContextReturnsOnCall map[int]struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -423,6 +452,110 @@ func (fake *FakeElastiCache) ModifyCacheParameterGroupWithContextReturnsOnCall(i
 	}{result1, result2}
 }
 
+func (fake *FakeElastiCache) DescribeSnapshotsPagesWithContext(ctx aws.Context, input *elasticache.DescribeSnapshotsInput, fn func(*elasticache.DescribeSnapshotsOutput, bool) bool, opts ...request.Option) error {
+	fake.describeSnapshotsPagesWithContextMutex.Lock()
+	ret, specificReturn := fake.describeSnapshotsPagesWithContextReturnsOnCall[len(fake.describeSnapshotsPagesWithContextArgsForCall)]
+	fake.describeSnapshotsPagesWithContextArgsForCall = append(fake.describeSnapshotsPagesWithContextArgsForCall, struct {
+		ctx   aws.Context
+		input *elasticache.DescribeSnapshotsInput
+		fn    func(*elasticache.DescribeSnapshotsOutput, bool) bool
+		opts  []request.Option
+	}{ctx, input, fn, opts})
+	fake.recordInvocation("DescribeSnapshotsPagesWithContext", []interface{}{ctx, input, fn, opts})
+	fake.describeSnapshotsPagesWithContextMutex.Unlock()
+	if fake.DescribeSnapshotsPagesWithContextStub != nil {
+		return fake.DescribeSnapshotsPagesWithContextStub(ctx, input, fn, opts...)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fake.describeSnapshotsPagesWithContextReturns.result1
+}
+
+func (fake *FakeElastiCache) DescribeSnapshotsPagesWithContextCallCount() int {
+	fake.describeSnapshotsPagesWithContextMutex.RLock()
+	defer fake.describeSnapshotsPagesWithContextMutex.RUnlock()
+	return len(fake.describeSnapshotsPagesWithContextArgsForCall)
+}
+
+func (fake *FakeElastiCache) DescribeSnapshotsPagesWithContextArgsForCall(i int) (aws.Context, *elasticache.DescribeSnapshotsInput, func(*elasticache.DescribeSnapshotsOutput, bool) bool, []request.Option) {
+	fake.describeSnapshotsPagesWithContextMutex.RLock()
+	defer fake.describeSnapshotsPagesWithContextMutex.RUnlock()
+	return fake.describeSnapshotsPagesWithContextArgsForCall[i].ctx, fake.describeSnapshotsPagesWithContextArgsForCall[i].input, fake.describeSnapshotsPagesWithContextArgsForCall[i].fn, fake.describeSnapshotsPagesWithContextArgsForCall[i].opts
+}
+
+func (fake *FakeElastiCache) DescribeSnapshotsPagesWithContextReturns(result1 error) {
+	fake.DescribeSnapshotsPagesWithContextStub = nil
+	fake.describeSnapshotsPagesWithContextReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeElastiCache) DescribeSnapshotsPagesWithContextReturnsOnCall(i int, result1 error) {
+	fake.DescribeSnapshotsPagesWithContextStub = nil
+	if fake.describeSnapshotsPagesWithContextReturnsOnCall == nil {
+		fake.describeSnapshotsPagesWithContextReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.describeSnapshotsPagesWithContextReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeElastiCache) ListTagsForResourceWithContext(ctx aws.Context, input *elasticache.ListTagsForResourceInput, opts ...request.Option) (*elasticache.TagListMessage, error) {
+	fake.listTagsForResourceWithContextMutex.Lock()
+	ret, specificReturn := fake.listTagsForResourceWithContextReturnsOnCall[len(fake.listTagsForResourceWithContextArgsForCall)]
+	fake.listTagsForResourceWithContextArgsForCall = append(fake.listTagsForResourceWithContextArgsForCall, struct {
+		ctx   aws.Context
+		input *elasticache.ListTagsForResourceInput
+		opts  []request.Option
+	}{ctx, input, opts})
+	fake.recordInvocation("ListTagsForResourceWithContext", []interface{}{ctx, input, opts})
+	fake.listTagsForResourceWithContextMutex.Unlock()
+	if fake.ListTagsForResourceWithContextStub != nil {
+		return fake.ListTagsForResourceWithContextStub(ctx, input, opts...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fake.listTagsForResourceWithContextReturns.result1, fake.listTagsForResourceWithContextReturns.result2
+}
+
+func (fake *FakeElastiCache) ListTagsForResourceWithContextCallCount() int {
+	fake.listTagsForResourceWithContextMutex.RLock()
+	defer fake.listTagsForResourceWithContextMutex.RUnlock()
+	return len(fake.listTagsForResourceWithContextArgsForCall)
+}
+
+func (fake *FakeElastiCache) ListTagsForResourceWithContextArgsForCall(i int) (aws.Context, *elasticache.ListTagsForResourceInput, []request.Option) {
+	fake.listTagsForResourceWithContextMutex.RLock()
+	defer fake.listTagsForResourceWithContextMutex.RUnlock()
+	return fake.listTagsForResourceWithContextArgsForCall[i].ctx, fake.listTagsForResourceWithContextArgsForCall[i].input, fake.listTagsForResourceWithContextArgsForCall[i].opts
+}
+
+func (fake *FakeElastiCache) ListTagsForResourceWithContextReturns(result1 *elasticache.TagListMessage, result2 error) {
+	fake.ListTagsForResourceWithContextStub = nil
+	fake.listTagsForResourceWithContextReturns = struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeElastiCache) ListTagsForResourceWithContextReturnsOnCall(i int, result1 *elasticache.TagListMessage, result2 error) {
+	fake.ListTagsForResourceWithContextStub = nil
+	if fake.listTagsForResourceWithContextReturnsOnCall == nil {
+		fake.listTagsForResourceWithContextReturnsOnCall = make(map[int]struct {
+			result1 *elasticache.TagListMessage
+			result2 error
+		})
+	}
+	fake.listTagsForResourceWithContextReturnsOnCall[i] = struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeElastiCache) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -438,6 +571,10 @@ func (fake *FakeElastiCache) Invocations() map[string][][]interface{} {
 	defer fake.describeReplicationGroupsWithContextMutex.RUnlock()
 	fake.modifyCacheParameterGroupWithContextMutex.RLock()
 	defer fake.modifyCacheParameterGroupWithContextMutex.RUnlock()
+	fake.describeSnapshotsPagesWithContextMutex.RLock()
+	defer fake.describeSnapshotsPagesWithContextMutex.RUnlock()
+	fake.listTagsForResourceWithContextMutex.RLock()
+	defer fake.listTagsForResourceWithContextMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

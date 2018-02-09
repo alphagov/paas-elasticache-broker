@@ -1,6 +1,9 @@
 package providers
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ServiceState is the state of a service instance
 type ServiceState string
@@ -25,6 +28,7 @@ type ProvisionParameters struct {
 	ReplicasPerNodeGroup       int64
 	ShardCount                 int64
 	SnapshotRetentionLimit     int64
+	RestoreFromSnapshot        *string
 	Description                string
 	Parameters                 map[string]string
 	Tags                       map[string]string
@@ -32,6 +36,12 @@ type ProvisionParameters struct {
 
 type DeprovisionParameters struct {
 	FinalSnapshotIdentifier string
+}
+
+type SnapshotInfo struct {
+	Name       string
+	CreateTime time.Time
+	Tags       map[string]string
 }
 
 // Provider is a general interface to implement the broker's functionality with a specific provider
@@ -44,6 +54,7 @@ type Provider interface {
 	GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*Credentials, error)
 	RevokeCredentials(ctx context.Context, instanceID, bindingID string) error
 	DeleteCacheParameterGroup(ctx context.Context, instanceID string) error
+	FindSnapshots(ctx context.Context, instanceID string) ([]SnapshotInfo, error)
 }
 
 // Credentials are the connection parameters for Redis clients
