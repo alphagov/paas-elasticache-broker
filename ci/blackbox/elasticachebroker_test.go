@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/alphagov/paas-elasticache-broker/ci/helpers"
-	"github.com/alphagov/paas-elasticache-broker/redis"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	redisclient "github.com/garyburd/redigo/redis"
@@ -41,7 +40,7 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				awsSession := session.Must(session.NewSession(&aws.Config{
 					Region: aws.String(elastiCacheBrokerConfig.Region)},
 				))
-				paramGroupName := redis.GenerateReplicationGroupName(instanceID)
+				paramGroupName := providers.GenerateReplicationGroupName(instanceID)
 				helpers.DestroyParameterGroup(&paramGroupName, awsSession)
 			}
 		})

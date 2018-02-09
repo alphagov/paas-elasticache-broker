@@ -4,7 +4,7 @@ package mocks
 import (
 	"sync"
 
-	"github.com/alphagov/paas-elasticache-broker/redis"
+	"github.com/alphagov/paas-elasticache-broker/providers"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -457,4 +457,4 @@ func (fake *FakeElastiCache) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ redis.ElastiCache = new(FakeElastiCache)
+var _ providers.ElastiCache = new(FakeElastiCache)

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"regexp"
 
-	"github.com/alphagov/paas-elasticache-broker/broker"
-	. "github.com/alphagov/paas-elasticache-broker/redis"
-	"github.com/alphagov/paas-elasticache-broker/redis/mocks"
+	"github.com/alphagov/paas-elasticache-broker/providers"
+	"github.com/alphagov/paas-elasticache-broker/providers/mocks"
+	. "github.com/alphagov/paas-elasticache-broker/providers/redis"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -21,7 +21,7 @@ import (
 var _ = Describe("Provider", func() {
 	var (
 		mockElasticache *mocks.FakeElastiCache
-		provider        *Provider
+		provider        *RedisProvider
 		AuthTokenSeed   = "super-secret"
 	)
 
@@ -37,7 +37,7 @@ var _ = Describe("Provider", func() {
 
 			ctx := context.Background()
 
-			provider.Provision(ctx, instanceID, broker.ProvisionParameters{
+			provider.Provision(ctx, instanceID, providers.ProvisionParameters{
 				Parameters: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
@@ -77,7 +77,7 @@ var _ = Describe("Provider", func() {
 			createErr := errors.New("some error")
 			mockElasticache.CreateCacheParameterGroupWithContextReturnsOnCall(0, nil, createErr)
 
-			provisionErr := provider.Provision(context.Background(), "foobar", broker.ProvisionParameters{})
+			provisionErr := provider.Provision(context.Background(), "foobar", providers.ProvisionParameters{})
 			Expect(provisionErr).To(MatchError(createErr))
 
 			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(0))
@@ -88,7 +88,7 @@ var _ = Describe("Provider", func() {
 			modifyErr := errors.New("some error")
 			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, modifyErr)
 
-			provisionErr := provider.Provision(context.Background(), "foobar", broker.ProvisionParameters{})
+			provisionErr := provider.Provision(context.Background(), "foobar", providers.ProvisionParameters{})
 			Expect(provisionErr).To(MatchError(modifyErr))
 
 			Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(1))
@@ -99,7 +99,7 @@ var _ = Describe("Provider", func() {
 			replicationGroupID := "cf-qwkec4pxhft6q"
 			ctx := context.Background()
 			instanceID := "foobar"
-			params := broker.ProvisionParameters{
+			params := providers.ProvisionParameters{
 				InstanceType:               "test instance type",
 				CacheParameterGroupName:    replicationGroupID,
 				SecurityGroupIds:           []string{"test sg1"},
@@ -141,7 +141,7 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("sets the tags properly", func() {
-			params := broker.ProvisionParameters{
+			params := providers.ProvisionParameters{
 				Tags: map[string]string{"tag1": "tag value1", "tag2": "tag value2"},
 			}
 			provider.Provision(context.Background(), "foobar", params)
@@ -156,7 +156,7 @@ var _ = Describe("Provider", func() {
 			createErr := errors.New("some err")
 			mockElasticache.CreateReplicationGroupWithContextReturnsOnCall(0, nil, createErr)
 
-			provisionErr := provider.Provision(context.Background(), "foobar", broker.ProvisionParameters{})
+			provisionErr := provider.Provision(context.Background(), "foobar", providers.ProvisionParameters{})
 			Expect(provisionErr).To(MatchError(createErr))
 		})
 
@@ -168,7 +168,7 @@ var _ = Describe("Provider", func() {
 			replicationGroupID := "cf-qwkec4pxhft6q"
 			ctx := context.Background()
 			instanceID := "foobar"
-			params := broker.DeprovisionParameters{}
+			params := providers.DeprovisionParameters{}
 			deprovisionErr := provider.Deprovision(ctx, instanceID, params)
 			Expect(deprovisionErr).ToNot(HaveOccurred())
 
@@ -181,7 +181,7 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("sets a parameter for creating a final snapshot if final snapshot name is set", func() {
-			params := broker.DeprovisionParameters{
+			params := providers.DeprovisionParameters{
 				FinalSnapshotIdentifier: "test snapshot",
 			}
 			provider.Deprovision(context.Background(), "foobar", params)
@@ -193,7 +193,7 @@ var _ = Describe("Provider", func() {
 			deleteErr := errors.New("some error")
 			mockElasticache.DeleteReplicationGroupWithContextReturnsOnCall(0, nil, deleteErr)
 
-			deprovisionErr := provider.Deprovision(context.Background(), "foobar", broker.DeprovisionParameters{})
+			deprovisionErr := provider.Deprovision(context.Background(), "foobar", providers.DeprovisionParameters{})
 			Expect(deprovisionErr).To(MatchError(deleteErr))
 		})
 
@@ -218,7 +218,7 @@ var _ = Describe("Provider", func() {
 
 			state, stateMessage, stateErr := provider.GetState(ctx, instanceID)
 
-			Expect(state).To(Equal(broker.ServiceState("test status")))
+			Expect(state).To(Equal(providers.ServiceState("test status")))
 			Expect(stateMessage).To(Equal("ElastiCache state is test status for cf-qwkec4pxhft6q"))
 			Expect(stateErr).ToNot(HaveOccurred())
 
@@ -243,7 +243,7 @@ var _ = Describe("Provider", func() {
 			mockElasticache.DescribeReplicationGroupsWithContextReturns(nil, describeErr)
 
 			state, stateMessage, stateErr := provider.GetState(context.Background(), "foobar")
-			Expect(state).To(Equal(broker.NonExisting))
+			Expect(state).To(Equal(providers.NonExisting))
 			Expect(stateMessage).To(Equal("Replication group does not exist: cf-qwkec4pxhft6q"))
 			Expect(stateErr).ToNot(HaveOccurred())
 		})
@@ -316,7 +316,7 @@ var _ = Describe("Provider", func() {
 				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(credentials).To(Equal(&broker.Credentials{
+				Expect(credentials).To(Equal(&providers.Credentials{
 					Host:       "test-host",
 					Port:       1234,
 					Name:       "cf-qwkec4pxhft6q",
@@ -361,7 +361,7 @@ var _ = Describe("Provider", func() {
 				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(credentials).To(Equal(&broker.Credentials{
+				Expect(credentials).To(Equal(&providers.Credentials{
 					Host:       "test-host",
 					Port:       1234,
 					Name:       "cf-qwkec4pxhft6q",
@@ -415,7 +415,7 @@ var _ = Describe("Provider", func() {
 				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(credentials).To(Equal(&broker.Credentials{
+				Expect(credentials).To(Equal(&providers.Credentials{
 					Host:       "configuration-endpoint",
 					Port:       11211,
 					Name:       "cf-qwkec4pxhft6q",

@@ -7,7 +7,8 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-elasticache-broker/broker"
-	"github.com/alphagov/paas-elasticache-broker/broker/mocks"
+	"github.com/alphagov/paas-elasticache-broker/providers"
+	"github.com/alphagov/paas-elasticache-broker/providers/mocks"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -115,7 +116,7 @@ var _ = Describe("Broker", func() {
 			Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
 			_, instanceID, params := fakeProvider.ProvisionArgsForCall(0)
 
-			expectedParams := broker.ProvisionParameters{
+			expectedParams := providers.ProvisionParameters{
 				InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
 				CacheParameterGroupName:    "default.redis3.2",
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
@@ -225,7 +226,7 @@ var _ = Describe("Broker", func() {
 			Expect(fakeProvider.DeprovisionCallCount()).To(Equal(1))
 			_, instanceID, params := fakeProvider.DeprovisionArgsForCall(0)
 
-			expectedParams := broker.DeprovisionParameters{}
+			expectedParams := providers.DeprovisionParameters{}
 
 			Expect(instanceID).To(Equal("instanceid"))
 			Expect(params).To(Equal(expectedParams))
@@ -265,7 +266,7 @@ var _ = Describe("Broker", func() {
 	Describe("LastOperation", func() {
 		It("returns last operation data when the instance is available", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			Expect(b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)).
@@ -313,7 +314,7 @@ var _ = Describe("Broker", func() {
 
 		It("accepts empty operation data temporarily", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", "")
@@ -322,7 +323,7 @@ var _ = Describe("Broker", func() {
 
 		It("returns an error if last operation data is not json", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", "I am not JSON")
@@ -331,7 +332,7 @@ var _ = Describe("Broker", func() {
 
 		It("returns an error if last operation data does not contain an action", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", "{}")
@@ -342,7 +343,7 @@ var _ = Describe("Broker", func() {
 			It("returns ErrInstanceDoesNotExist when instance does not exist", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 
 				_, err := b.LastOperation(context.Background(), "myinstance", `{"action": "provisioning"}`)
 				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(0))
@@ -354,7 +355,7 @@ var _ = Describe("Broker", func() {
 			It("deletes the cache parameter group if the instance doesn't exist and returns ErrInstanceDoesNotExist", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 				ctx := context.Background()
 				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
 
@@ -369,7 +370,7 @@ var _ = Describe("Broker", func() {
 			It("returns an error if deleting the cache parameter group fails", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 				deleteError := errors.New("this is an error")
 				fakeProvider.DeleteCacheParameterGroupReturns(deleteError)
 				ctx := context.Background()
@@ -396,15 +397,15 @@ var _ = Describe("Broker", func() {
 
 	Describe("state mapping from AWS to brokerapi package", func() {
 		DescribeTable("known states",
-			func(from broker.ServiceState, to brokerapi.LastOperationState) {
+			func(from providers.ServiceState, to brokerapi.LastOperationState) {
 				Expect(broker.ProviderStatesMapping(from)).To(Equal(to))
 			},
-			Entry("available => succeeded", broker.Available, brokerapi.Succeeded),
-			Entry("create-failed => failure", broker.CreateFailed, brokerapi.Failed),
-			Entry("creating => in progress", broker.Creating, brokerapi.InProgress),
-			Entry("modifying => in progress", broker.Modifying, brokerapi.InProgress),
-			Entry("deleting => in progress", broker.Deleting, brokerapi.InProgress),
-			Entry("snapshotting => in progress", broker.Snapshotting, brokerapi.InProgress),
+			Entry("available => succeeded", providers.Available, brokerapi.Succeeded),
+			Entry("create-failed => failure", providers.CreateFailed, brokerapi.Failed),
+			Entry("creating => in progress", providers.Creating, brokerapi.InProgress),
+			Entry("modifying => in progress", providers.Modifying, brokerapi.InProgress),
+			Entry("deleting => in progress", providers.Deleting, brokerapi.InProgress),
+			Entry("snapshotting => in progress", providers.Snapshotting, brokerapi.InProgress),
 		)
 
 		It("errors on unknown state and returns 'in progress'", func() {
@@ -419,7 +420,7 @@ var _ = Describe("Broker", func() {
 			ctx := context.Background()
 			instanceID := "test-instance"
 			bindingID := "test-binding"
-			expectedCredentials := &broker.Credentials{
+			expectedCredentials := &providers.Credentials{
 				Host: "test-host",
 			}
 

@@ -5,16 +5,16 @@ import (
 	"context"
 	"sync"
 
-	"github.com/alphagov/paas-elasticache-broker/broker"
+	"github.com/alphagov/paas-elasticache-broker/providers"
 )
 
 type FakeProvider struct {
-	ProvisionStub        func(ctx context.Context, instanceID string, params broker.ProvisionParameters) error
+	ProvisionStub        func(ctx context.Context, instanceID string, params providers.ProvisionParameters) error
 	provisionMutex       sync.RWMutex
 	provisionArgsForCall []struct {
 		ctx        context.Context
 		instanceID string
-		params     broker.ProvisionParameters
+		params     providers.ProvisionParameters
 	}
 	provisionReturns struct {
 		result1 error
@@ -22,12 +22,12 @@ type FakeProvider struct {
 	provisionReturnsOnCall map[int]struct {
 		result1 error
 	}
-	DeprovisionStub        func(ctx context.Context, instanceID string, params broker.DeprovisionParameters) error
+	DeprovisionStub        func(ctx context.Context, instanceID string, params providers.DeprovisionParameters) error
 	deprovisionMutex       sync.RWMutex
 	deprovisionArgsForCall []struct {
 		ctx        context.Context
 		instanceID string
-		params     broker.DeprovisionParameters
+		params     providers.DeprovisionParameters
 	}
 	deprovisionReturns struct {
 		result1 error
@@ -35,23 +35,23 @@ type FakeProvider struct {
 	deprovisionReturnsOnCall map[int]struct {
 		result1 error
 	}
-	GetStateStub        func(ctx context.Context, instanceID string) (broker.ServiceState, string, error)
+	GetStateStub        func(ctx context.Context, instanceID string) (providers.ServiceState, string, error)
 	getStateMutex       sync.RWMutex
 	getStateArgsForCall []struct {
 		ctx        context.Context
 		instanceID string
 	}
 	getStateReturns struct {
-		result1 broker.ServiceState
+		result1 providers.ServiceState
 		result2 string
 		result3 error
 	}
 	getStateReturnsOnCall map[int]struct {
-		result1 broker.ServiceState
+		result1 providers.ServiceState
 		result2 string
 		result3 error
 	}
-	GenerateCredentialsStub        func(ctx context.Context, instanceID, bindingID string) (*broker.Credentials, error)
+	GenerateCredentialsStub        func(ctx context.Context, instanceID, bindingID string) (*providers.Credentials, error)
 	generateCredentialsMutex       sync.RWMutex
 	generateCredentialsArgsForCall []struct {
 		ctx        context.Context
@@ -59,11 +59,11 @@ type FakeProvider struct {
 		bindingID  string
 	}
 	generateCredentialsReturns struct {
-		result1 *broker.Credentials
+		result1 *providers.Credentials
 		result2 error
 	}
 	generateCredentialsReturnsOnCall map[int]struct {
-		result1 *broker.Credentials
+		result1 *providers.Credentials
 		result2 error
 	}
 	RevokeCredentialsStub        func(ctx context.Context, instanceID, bindingID string) error
@@ -95,13 +95,13 @@ type FakeProvider struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeProvider) Provision(ctx context.Context, instanceID string, params broker.ProvisionParameters) error {
+func (fake *FakeProvider) Provision(ctx context.Context, instanceID string, params providers.ProvisionParameters) error {
 	fake.provisionMutex.Lock()
 	ret, specificReturn := fake.provisionReturnsOnCall[len(fake.provisionArgsForCall)]
 	fake.provisionArgsForCall = append(fake.provisionArgsForCall, struct {
 		ctx        context.Context
 		instanceID string
-		params     broker.ProvisionParameters
+		params     providers.ProvisionParameters
 	}{ctx, instanceID, params})
 	fake.recordInvocation("Provision", []interface{}{ctx, instanceID, params})
 	fake.provisionMutex.Unlock()
@@ -120,7 +120,7 @@ func (fake *FakeProvider) ProvisionCallCount() int {
 	return len(fake.provisionArgsForCall)
 }
 
-func (fake *FakeProvider) ProvisionArgsForCall(i int) (context.Context, string, broker.ProvisionParameters) {
+func (fake *FakeProvider) ProvisionArgsForCall(i int) (context.Context, string, providers.ProvisionParameters) {
 	fake.provisionMutex.RLock()
 	defer fake.provisionMutex.RUnlock()
 	return fake.provisionArgsForCall[i].ctx, fake.provisionArgsForCall[i].instanceID, fake.provisionArgsForCall[i].params
@@ -145,13 +145,13 @@ func (fake *FakeProvider) ProvisionReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeProvider) Deprovision(ctx context.Context, instanceID string, params broker.DeprovisionParameters) error {
+func (fake *FakeProvider) Deprovision(ctx context.Context, instanceID string, params providers.DeprovisionParameters) error {
 	fake.deprovisionMutex.Lock()
 	ret, specificReturn := fake.deprovisionReturnsOnCall[len(fake.deprovisionArgsForCall)]
 	fake.deprovisionArgsForCall = append(fake.deprovisionArgsForCall, struct {
 		ctx        context.Context
 		instanceID string
-		params     broker.DeprovisionParameters
+		params     providers.DeprovisionParameters
 	}{ctx, instanceID, params})
 	fake.recordInvocation("Deprovision", []interface{}{ctx, instanceID, params})
 	fake.deprovisionMutex.Unlock()
@@ -170,7 +170,7 @@ func (fake *FakeProvider) DeprovisionCallCount() int {
 	return len(fake.deprovisionArgsForCall)
 }
 
-func (fake *FakeProvider) DeprovisionArgsForCall(i int) (context.Context, string, broker.DeprovisionParameters) {
+func (fake *FakeProvider) DeprovisionArgsForCall(i int) (context.Context, string, providers.DeprovisionParameters) {
 	fake.deprovisionMutex.RLock()
 	defer fake.deprovisionMutex.RUnlock()
 	return fake.deprovisionArgsForCall[i].ctx, fake.deprovisionArgsForCall[i].instanceID, fake.deprovisionArgsForCall[i].params
@@ -195,7 +195,7 @@ func (fake *FakeProvider) DeprovisionReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeProvider) GetState(ctx context.Context, instanceID string) (broker.ServiceState, string, error) {
+func (fake *FakeProvider) GetState(ctx context.Context, instanceID string) (providers.ServiceState, string, error) {
 	fake.getStateMutex.Lock()
 	ret, specificReturn := fake.getStateReturnsOnCall[len(fake.getStateArgsForCall)]
 	fake.getStateArgsForCall = append(fake.getStateArgsForCall, struct {
@@ -225,32 +225,32 @@ func (fake *FakeProvider) GetStateArgsForCall(i int) (context.Context, string) {
 	return fake.getStateArgsForCall[i].ctx, fake.getStateArgsForCall[i].instanceID
 }
 
-func (fake *FakeProvider) GetStateReturns(result1 broker.ServiceState, result2 string, result3 error) {
+func (fake *FakeProvider) GetStateReturns(result1 providers.ServiceState, result2 string, result3 error) {
 	fake.GetStateStub = nil
 	fake.getStateReturns = struct {
-		result1 broker.ServiceState
+		result1 providers.ServiceState
 		result2 string
 		result3 error
 	}{result1, result2, result3}
 }
 
-func (fake *FakeProvider) GetStateReturnsOnCall(i int, result1 broker.ServiceState, result2 string, result3 error) {
+func (fake *FakeProvider) GetStateReturnsOnCall(i int, result1 providers.ServiceState, result2 string, result3 error) {
 	fake.GetStateStub = nil
 	if fake.getStateReturnsOnCall == nil {
 		fake.getStateReturnsOnCall = make(map[int]struct {
-			result1 broker.ServiceState
+			result1 providers.ServiceState
 			result2 string
 			result3 error
 		})
 	}
 	fake.getStateReturnsOnCall[i] = struct {
-		result1 broker.ServiceState
+		result1 providers.ServiceState
 		result2 string
 		result3 error
 	}{result1, result2, result3}
 }
 
-func (fake *FakeProvider) GenerateCredentials(ctx context.Context, instanceID string, bindingID string) (*broker.Credentials, error) {
+func (fake *FakeProvider) GenerateCredentials(ctx context.Context, instanceID string, bindingID string) (*providers.Credentials, error) {
 	fake.generateCredentialsMutex.Lock()
 	ret, specificReturn := fake.generateCredentialsReturnsOnCall[len(fake.generateCredentialsArgsForCall)]
 	fake.generateCredentialsArgsForCall = append(fake.generateCredentialsArgsForCall, struct {
@@ -281,24 +281,24 @@ func (fake *FakeProvider) GenerateCredentialsArgsForCall(i int) (context.Context
 	return fake.generateCredentialsArgsForCall[i].ctx, fake.generateCredentialsArgsForCall[i].instanceID, fake.generateCredentialsArgsForCall[i].bindingID
 }
 
-func (fake *FakeProvider) GenerateCredentialsReturns(result1 *broker.Credentials, result2 error) {
+func (fake *FakeProvider) GenerateCredentialsReturns(result1 *providers.Credentials, result2 error) {
 	fake.GenerateCredentialsStub = nil
 	fake.generateCredentialsReturns = struct {
-		result1 *broker.Credentials
+		result1 *providers.Credentials
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeProvider) GenerateCredentialsReturnsOnCall(i int, result1 *broker.Credentials, result2 error) {
+func (fake *FakeProvider) GenerateCredentialsReturnsOnCall(i int, result1 *providers.Credentials, result2 error) {
 	fake.GenerateCredentialsStub = nil
 	if fake.generateCredentialsReturnsOnCall == nil {
 		fake.generateCredentialsReturnsOnCall = make(map[int]struct {
-			result1 *broker.Credentials
+			result1 *providers.Credentials
 			result2 error
 		})
 	}
 	fake.generateCredentialsReturnsOnCall[i] = struct {
-		result1 *broker.Credentials
+		result1 *providers.Credentials
 		result2 error
 	}{result1, result2}
 }
@@ -436,4 +436,4 @@ func (fake *FakeProvider) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ broker.Provider = new(FakeProvider)
+var _ providers.Provider = new(FakeProvider)

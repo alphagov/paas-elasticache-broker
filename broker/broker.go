@@ -9,12 +9,14 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"
+
+	"github.com/alphagov/paas-elasticache-broker/providers"
 )
 
 // Broker is the open service broker API implementation for AWS Elasticache Redis
 type Broker struct {
 	config   Config
-	provider Provider
+	provider providers.Provider
 	logger   lager.Logger
 }
 
@@ -30,7 +32,7 @@ func (o Operation) String() string {
 }
 
 // New creates a new broker instance
-func New(config Config, provider Provider, logger lager.Logger) *Broker {
+func New(config Config, provider providers.Provider, logger lager.Logger) *Broker {
 	return &Broker{
 		config:   config,
 		provider: provider,
@@ -67,7 +69,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("service plan %s: %s", details.PlanID, err)
 	}
 
-	provisionParams := ProvisionParameters{
+	provisionParams := providers.ProvisionParameters{
 		InstanceType:               planConfig.InstanceType,
 		CacheParameterGroupName:    "default.redis3.2",
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
@@ -139,7 +141,7 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFunc()
 
-	err := b.provider.Deprovision(providerCtx, instanceID, DeprovisionParameters{})
+	err := b.provider.Deprovision(providerCtx, instanceID, providers.DeprovisionParameters{})
 	if err != nil {
 		return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("provider %s for plan %s: %s", "redis", details.PlanID, err)
 	}
@@ -211,7 +213,7 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 		return brokerapi.LastOperation{}, fmt.Errorf("error getting state for %s: %s", instanceID, err)
 	}
 
-	if state == NonExisting {
+	if state == providers.NonExisting {
 		if operation.Action == ActionDeprovisioning {
 			err = b.provider.DeleteCacheParameterGroup(providerCtx, instanceID)
 			if err != nil {
@@ -234,19 +236,19 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 	}, nil
 }
 
-func ProviderStatesMapping(state ServiceState) (brokerapi.LastOperationState, error) {
+func ProviderStatesMapping(state providers.ServiceState) (brokerapi.LastOperationState, error) {
 	switch state {
-	case Available:
+	case providers.Available:
 		return brokerapi.Succeeded, nil
-	case CreateFailed:
+	case providers.CreateFailed:
 		return brokerapi.Failed, nil
-	case Creating:
+	case providers.Creating:
 		fallthrough
-	case Modifying:
+	case providers.Modifying:
 		fallthrough
-	case Deleting:
+	case providers.Deleting:
 		fallthrough
-	case Snapshotting:
+	case providers.Snapshotting:
 		return brokerapi.InProgress, nil
 	}
 	return brokerapi.InProgress, fmt.Errorf("Unknown service state: %s", state)

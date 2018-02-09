@@ -1,4 +1,4 @@
-package redis
+package providers
 
 import (
 	"github.com/aws/aws-sdk-go/aws"

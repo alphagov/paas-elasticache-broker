@@ -10,7 +10,8 @@ import (
 	"code.cloudfoundry.org/lager"
 
 	"github.com/alphagov/paas-elasticache-broker/broker"
-	"github.com/alphagov/paas-elasticache-broker/broker/mocks"
+	"github.com/alphagov/paas-elasticache-broker/providers"
+	"github.com/alphagov/paas-elasticache-broker/providers/mocks"
 	"github.com/pivotal-cf/brokerapi"
 
 	"errors"
@@ -214,7 +215,7 @@ var _ = Describe("Broker", func() {
 	Describe("LastOperation", func() {
 		It("responds with 200 when the instance is available", func() {
 			instanceID := uuid.NewV4().String()
-			fakeProvider.GetStateReturns(broker.Available, "", nil)
+			fakeProvider.GetStateReturns(providers.Available, "", nil)
 			resp := DoRequest(brokerAPI, NewRequest(
 				"GET",
 				"/v2/service_instances/"+instanceID+"/last_operation",
@@ -245,7 +246,7 @@ var _ = Describe("Broker", func() {
 
 		It("responds with 410 when the instance doesn't exist", func() {
 			instanceID := uuid.NewV4().String()
-			fakeProvider.GetStateReturns(broker.NonExisting, "", nil)
+			fakeProvider.GetStateReturns(providers.NonExisting, "", nil)
 			resp := DoRequest(brokerAPI, NewRequest(
 				"GET",
 				"/v2/service_instances/"+instanceID+"/last_operation",

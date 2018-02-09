@@ -1,4 +1,4 @@
-package broker
+package providers
 
 import "context"
 
@@ -15,6 +15,24 @@ const (
 	Snapshotting ServiceState = "snapshotting"
 	NonExisting  ServiceState = "non-existing"
 )
+
+type ProvisionParameters struct {
+	InstanceType               string
+	CacheParameterGroupName    string
+	SecurityGroupIds           []string
+	CacheSubnetGroupName       string
+	PreferredMaintenanceWindow string
+	ReplicasPerNodeGroup       int64
+	ShardCount                 int64
+	SnapshotRetentionLimit     int64
+	Description                string
+	Parameters                 map[string]string
+	Tags                       map[string]string
+}
+
+type DeprovisionParameters struct {
+	FinalSnapshotIdentifier string
+}
 
 // Provider is a general interface to implement the broker's functionality with a specific provider
 //
