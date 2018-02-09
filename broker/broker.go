@@ -84,6 +84,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 			"plan-id":         details.PlanID,
 			"organization-id": details.OrganizationGUID,
 			"space-id":        details.SpaceGUID,
+			"instance-id":     instanceID,
 		},
 	}
 

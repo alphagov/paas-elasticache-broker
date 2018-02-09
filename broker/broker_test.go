@@ -132,6 +132,7 @@ var _ = Describe("Broker", func() {
 					"plan-id":         validProvisionDetails.PlanID,
 					"organization-id": validProvisionDetails.OrganizationGUID,
 					"space-id":        validProvisionDetails.SpaceGUID,
+					"instance-id":     "instanceid",
 				},
 			}
 
