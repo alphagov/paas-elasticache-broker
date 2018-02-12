@@ -80,25 +80,24 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFunc()
 
-	cfProvisionParameters := CfProvisionParameters{}
+	provisionParameters := &ProvisionParameters{}
 	if len(details.RawParameters) > 0 {
-		if err := json.Unmarshal(details.RawParameters, &cfProvisionParameters); err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
-		}
-		if err := cfProvisionParameters.Validate(); err != nil {
+		var err error
+		provisionParameters, err = ParseProvisionParameters(details.RawParameters)
+		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	}
 
 	var restoreFromSnapshotName *string
-	if cfProvisionParameters.RestoreFromLatestSnapshotOf != nil {
-		snapshots, err := b.provider.FindSnapshots(providerCtx, *cfProvisionParameters.RestoreFromLatestSnapshotOf)
+	if provisionParameters.RestoreFromLatestSnapshotOf != nil {
+		snapshots, err := b.provider.FindSnapshots(providerCtx, *provisionParameters.RestoreFromLatestSnapshotOf)
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 		if len(snapshots) == 0 {
 			return brokerapi.ProvisionedServiceSpec{},
-				fmt.Errorf("No snapshots found for: %s", *cfProvisionParameters.RestoreFromLatestSnapshotOf)
+				fmt.Errorf("No snapshots found for: %s", *provisionParameters.RestoreFromLatestSnapshotOf)
 		}
 		sort.Sort(ByCreateTime(snapshots))
 		latestSnapshot := snapshots[0]
