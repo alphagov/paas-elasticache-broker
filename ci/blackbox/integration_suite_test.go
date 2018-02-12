@@ -31,6 +31,7 @@ var (
 
 	elastiCacheBrokerConfig broker.Config
 
+	awsSession                 *session.Session
 	elastiCacheSubnetGroupName *string
 	ec2SecurityGroupID         *string
 )
@@ -44,7 +45,7 @@ func TestSuite(t *testing.T) {
 
 		originalConfig, err := broker.LoadConfig("./config.json")
 
-		awsSession := session.Must(session.NewSession(&aws.Config{
+		awsSession = session.Must(session.NewSession(&aws.Config{
 			Region: aws.String(originalConfig.Region)},
 		))
 

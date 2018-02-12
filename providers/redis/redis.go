@@ -31,6 +31,9 @@ type RedisProvider struct {
 func NewProvider(elasticache providers.ElastiCache, awsAccountID, awsPartition, awsRegion string, logger lager.Logger, authTokenSeed string) *RedisProvider {
 	return &RedisProvider{
 		aws:           elasticache,
+		awsAccountID:  awsAccountID,
+		awsPartition:  awsPartition,
+		awsRegion:     awsRegion,
 		logger:        logger,
 		authTokenSeed: authTokenSeed,
 	}
