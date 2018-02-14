@@ -117,7 +117,8 @@ var _ = Describe("Broker", func() {
 			fakeProvider := &mocks.FakeProvider{}
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+			_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+			Expect(err).ToNot(HaveOccurred())
 
 			Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
 			_, instanceID, params := fakeProvider.ProvisionArgsForCall(0)
@@ -145,6 +146,38 @@ var _ = Describe("Broker", func() {
 
 			Expect(instanceID).To(Equal("instanceid"))
 			Expect(params).To(Equal(expectedParams))
+		})
+
+		It("passes the user provided parameters", func() {
+			fakeProvider := &mocks.FakeProvider{}
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+			validProvisionDetails.RawParameters = []byte(`{"maxmemory-policy": "noeviction"}`)
+
+			_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
+			_, _, params := fakeProvider.ProvisionArgsForCall(0)
+
+			expectedParameters := map[string]string{
+				"reserved-memory":  "0",
+				"maxmemory-policy": "noeviction",
+			}
+
+			Expect(params.Parameters).To(Equal(expectedParameters))
+		})
+
+		Context("given an unknown user provided parameter", func() {
+			It("should return with error", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+				validProvisionDetails.RawParameters = []byte(`{"unknown-foo": "bar"}`)
+
+				_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+				Expect(err).To(MatchError("unknown parameter: unknown-foo"))
+			})
 		})
 
 		It("errors if provisioning fails", func() {

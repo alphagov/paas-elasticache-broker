@@ -80,24 +80,24 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFunc()
 
-	provisionParameters := &ProvisionParameters{}
+	userParameters := &ProvisionParameters{}
 	if len(details.RawParameters) > 0 {
 		var err error
-		provisionParameters, err = ParseProvisionParameters(details.RawParameters)
+		userParameters, err = ParseProvisionParameters(details.RawParameters)
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	}
 
 	var restoreFromSnapshotName *string
-	if provisionParameters.RestoreFromLatestSnapshotOf != nil {
-		snapshots, err := b.provider.FindSnapshots(providerCtx, *provisionParameters.RestoreFromLatestSnapshotOf)
+	if userParameters.RestoreFromLatestSnapshotOf != nil {
+		snapshots, err := b.provider.FindSnapshots(providerCtx, *userParameters.RestoreFromLatestSnapshotOf)
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 		if len(snapshots) == 0 {
 			return brokerapi.ProvisionedServiceSpec{},
-				fmt.Errorf("No snapshots found for: %s", *provisionParameters.RestoreFromLatestSnapshotOf)
+				fmt.Errorf("No snapshots found for: %s", *userParameters.RestoreFromLatestSnapshotOf)
 		}
 		sort.Sort(ByCreateTime(snapshots))
 		latestSnapshot := snapshots[0]
@@ -119,6 +119,14 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 
 	}
 
+	params := make(map[string]string, len(planConfig.Parameters))
+	for k, v := range planConfig.Parameters {
+		params[k] = v
+	}
+	if userParameters.MaxMemoryPolicy != nil {
+		params["maxmemory-policy"] = *userParameters.MaxMemoryPolicy
+	}
+
 	provisionParams := providers.ProvisionParameters{
 		InstanceType:               planConfig.InstanceType,
 		CacheParameterGroupName:    "default.redis3.2",
@@ -130,7 +138,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		SnapshotRetentionLimit:     planConfig.SnapshotRetentionLimit,
 		RestoreFromSnapshot:        restoreFromSnapshotName,
 		Description:                "Cloud Foundry service",
-		Parameters:                 planConfig.Parameters,
+		Parameters:                 params,
 		Tags: map[string]string{
 			"created-by":      b.config.BrokerName,
 			"service-id":      details.ServiceID,

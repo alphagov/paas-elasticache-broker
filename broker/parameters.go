@@ -11,7 +11,7 @@ func ParseProvisionParameters(data []byte) (*ProvisionParameters, error) {
 	if err != nil {
 		return nil, err
 	}
-	validKeys := []string{"restore_from_latest_snapshot_of"}
+	validKeys := []string{"restore_from_latest_snapshot_of", "maxmemory-policy"}
 	for key := range mapParams {
 		valid := false
 		for _, validKey := range validKeys {
@@ -33,4 +33,5 @@ func ParseProvisionParameters(data []byte) (*ProvisionParameters, error) {
 
 type ProvisionParameters struct {
 	RestoreFromLatestSnapshotOf *string `json:"restore_from_latest_snapshot_of"`
+	MaxMemoryPolicy             *string `json:"maxmemory-policy"`
 }
