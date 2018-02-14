@@ -8,13 +8,35 @@ import (
 const ParamRestoreLatestSnapshotOf = "restore_from_latest_snapshot_of"
 const ParamMaxMemoryPolicy = "maxmemory_policy"
 
-func ParseProvisionParameters(data []byte) (*ProvisionParameters, error) {
-	mapParams := map[string]interface{}{}
-	err := json.Unmarshal(data, &mapParams)
+func parseProvisionParameters(data []byte) (*ProvisionParameters, error) {
+	params := &ProvisionParameters{}
+	err := unmarshalParameters(data, params, []string{
+		ParamRestoreLatestSnapshotOf,
+		ParamMaxMemoryPolicy,
+	})
 	if err != nil {
 		return nil, err
 	}
-	validKeys := []string{ParamRestoreLatestSnapshotOf, ParamMaxMemoryPolicy}
+	return params, nil
+}
+
+func parseUpdateParameters(data []byte) (*UpdateParameters, error) {
+	params := &UpdateParameters{}
+	err := unmarshalParameters(data, params, []string{
+		ParamMaxMemoryPolicy,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return params, nil
+}
+
+func unmarshalParameters(data []byte, out interface{}, validKeys []string) error {
+	mapParams := map[string]interface{}{}
+	err := json.Unmarshal(data, &mapParams)
+	if err != nil {
+		return err
+	}
 	for key := range mapParams {
 		valid := false
 		for _, validKey := range validKeys {
@@ -24,17 +46,17 @@ func ParseProvisionParameters(data []byte) (*ProvisionParameters, error) {
 			}
 		}
 		if !valid {
-			return nil, fmt.Errorf("unknown parameter: %s", key)
+			return fmt.Errorf("unknown parameter: %s", key)
 		}
 	}
-	provisionParameters := &ProvisionParameters{}
-	if err := json.Unmarshal(data, provisionParameters); err != nil {
-		return nil, err
-	}
-	return provisionParameters, nil
+	return json.Unmarshal(data, out)
 }
 
 type ProvisionParameters struct {
 	RestoreFromLatestSnapshotOf *string `json:"restore_from_latest_snapshot_of"`
 	MaxMemoryPolicy             *string `json:"maxmemory_policy"`
+}
+
+type UpdateParameters struct {
+	MaxMemoryPolicy *string `json:"maxmemory_policy"`
 }

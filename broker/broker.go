@@ -3,7 +3,6 @@ package broker
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -83,7 +82,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	userParameters := &ProvisionParameters{}
 	if len(details.RawParameters) > 0 {
 		var err error
-		userParameters, err = ParseProvisionParameters(details.RawParameters)
+		userParameters, err = parseProvisionParameters(details.RawParameters)
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
@@ -177,10 +176,52 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 	if !asyncAllowed {
 		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrAsyncRequired
 	}
+
+	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelFunc()
+
+	userParameters := &UpdateParameters{}
+	if len(details.RawParameters) > 0 {
+		var err error
+		userParameters, err = parseUpdateParameters(details.RawParameters)
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+	}
+
+	params := map[string]string{}
+	if userParameters.MaxMemoryPolicy != nil {
+		params["maxmemory-policy"] = *userParameters.MaxMemoryPolicy
+	}
+
+	if details.PlanID != details.PreviousValues.PlanID {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("changing plans is not currently supported")
+	}
+
+	if details.ServiceID != details.PreviousValues.ServiceID {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("changing plans is not currently supported")
+	}
+
+	if len(params) == 0 {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("no parameters provided")
+	}
+
+	err := b.provider.Update(providerCtx, instanceID, providers.UpdateParameters{
+		Parameters: params,
+	})
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+
+	b.logger.Debug("update-success", lager.Data{
+		"instance-id":        instanceID,
+		"details":            details,
+		"accepts-incomplete": asyncAllowed,
+	})
 	return brokerapi.UpdateServiceSpec{
-		IsAsync:       true,
+		IsAsync:       false,
 		OperationData: Operation{Action: ActionUpdating}.String(),
-	}, errors.New("notimp")
+	}, nil
 }
 
 // Deprovision deletes a service instance

@@ -14,8 +14,6 @@ var (
 	ErrNoSuchPlan = errors.New("no plan found")
 )
 
-type UpdateParameters struct{}
-
 type BindParameters struct{}
 
 type PlanConfig struct {
