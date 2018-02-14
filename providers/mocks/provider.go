@@ -22,6 +22,19 @@ type FakeProvider struct {
 	provisionReturnsOnCall map[int]struct {
 		result1 error
 	}
+	UpdateStub        func(ctx context.Context, instanceID string, params providers.UpdateParameters) error
+	updateMutex       sync.RWMutex
+	updateArgsForCall []struct {
+		ctx        context.Context
+		instanceID string
+		params     providers.UpdateParameters
+	}
+	updateReturns struct {
+		result1 error
+	}
+	updateReturnsOnCall map[int]struct {
+		result1 error
+	}
 	DeprovisionStub        func(ctx context.Context, instanceID string, params providers.DeprovisionParameters) error
 	deprovisionMutex       sync.RWMutex
 	deprovisionArgsForCall []struct {
@@ -155,6 +168,56 @@ func (fake *FakeProvider) ProvisionReturnsOnCall(i int, result1 error) {
 		})
 	}
 	fake.provisionReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) Update(ctx context.Context, instanceID string, params providers.UpdateParameters) error {
+	fake.updateMutex.Lock()
+	ret, specificReturn := fake.updateReturnsOnCall[len(fake.updateArgsForCall)]
+	fake.updateArgsForCall = append(fake.updateArgsForCall, struct {
+		ctx        context.Context
+		instanceID string
+		params     providers.UpdateParameters
+	}{ctx, instanceID, params})
+	fake.recordInvocation("Update", []interface{}{ctx, instanceID, params})
+	fake.updateMutex.Unlock()
+	if fake.UpdateStub != nil {
+		return fake.UpdateStub(ctx, instanceID, params)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fake.updateReturns.result1
+}
+
+func (fake *FakeProvider) UpdateCallCount() int {
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
+	return len(fake.updateArgsForCall)
+}
+
+func (fake *FakeProvider) UpdateArgsForCall(i int) (context.Context, string, providers.UpdateParameters) {
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
+	return fake.updateArgsForCall[i].ctx, fake.updateArgsForCall[i].instanceID, fake.updateArgsForCall[i].params
+}
+
+func (fake *FakeProvider) UpdateReturns(result1 error) {
+	fake.UpdateStub = nil
+	fake.updateReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) UpdateReturnsOnCall(i int, result1 error) {
+	fake.UpdateStub = nil
+	if fake.updateReturnsOnCall == nil {
+		fake.updateReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.updateReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
@@ -473,6 +536,8 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.invocationsMutex.RUnlock()
 	fake.provisionMutex.RLock()
 	defer fake.provisionMutex.RUnlock()
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
 	fake.deprovisionMutex.RLock()
 	defer fake.deprovisionMutex.RUnlock()
 	fake.getStateMutex.RLock()

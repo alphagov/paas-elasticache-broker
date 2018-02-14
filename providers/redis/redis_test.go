@@ -747,4 +747,57 @@ var _ = Describe("Provider", func() {
 			)
 		})
 	})
+
+	Context("when updating", func() {
+		It("should update the cache parameter group", func() {
+			replicationGroupID := "cf-qwkec4pxhft6q"
+			instanceID := "foobar"
+
+			ctx := context.Background()
+
+			err := provider.Update(ctx, instanceID, providers.UpdateParameters{
+				Parameters: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(1))
+			receivedCtx, paramGroupInput, _ := mockElasticache.ModifyCacheParameterGroupWithContextArgsForCall(0)
+			Expect(receivedCtx).To(Equal(ctx))
+			Expect(paramGroupInput.CacheParameterGroupName).To(Equal(aws.String(replicationGroupID)))
+			Expect(paramGroupInput.ParameterNameValues).To(ConsistOf([]*elasticache.ParameterNameValue{
+				{
+					ParameterName:  aws.String("key1"),
+					ParameterValue: aws.String("value1"),
+				},
+				{
+					ParameterName:  aws.String("key2"),
+					ParameterValue: aws.String("value2"),
+				},
+			}))
+		})
+
+		It("should not modify the cache parameter group if no params are passed", func() {
+			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+				Parameters: map[string]string{},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(0))
+		})
+
+		It("should return with error if AWS API returns with an error", func() {
+			awsError := errors.New("some error")
+			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, awsError)
+
+			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+				Parameters: map[string]string{
+					"key1": "value1",
+				},
+			})
+			Expect(err).To(MatchError(awsError))
+		})
+	})
 })

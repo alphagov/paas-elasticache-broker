@@ -17,7 +17,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache"
 )
 
-// Provider is the Redis broker provider
+var _ providers.Provider = &RedisProvider{}
+
+// RedisProvider is the Redis broker provider
 type RedisProvider struct {
 	aws           providers.ElastiCache
 	awsAccountID  string
@@ -39,8 +41,7 @@ func NewProvider(elasticache providers.ElastiCache, awsAccountID, awsPartition, 
 	}
 }
 
-func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, instanceID string, params providers.ProvisionParameters) error {
-	replicationGroupID := GenerateReplicationGroupName(instanceID)
+func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicationGroupID string, params providers.ProvisionParameters) error {
 	_, err := p.aws.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
 		CacheParameterGroupFamily: aws.String("redis3.2"),
 		CacheParameterGroupName:   aws.String(replicationGroupID),
@@ -50,19 +51,28 @@ func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, instanceI
 		return err
 	}
 
+	if params.Parameters == nil {
+		params.Parameters = map[string]string{}
+	}
+	params.Parameters["cluster-enabled"] = "yes"
+
+	return p.modifyCacheParameterGroup(ctx, replicationGroupID, params.Parameters)
+}
+
+func (p *RedisProvider) modifyCacheParameterGroup(ctx context.Context, replicationGroupID string, params map[string]string) error {
+	if len(params) == 0 {
+		return nil
+	}
+
 	pgParams := []*elasticache.ParameterNameValue{}
-	for paramName, paramValue := range params.Parameters {
+	for paramName, paramValue := range params {
 		pgParams = append(pgParams, &elasticache.ParameterNameValue{
 			ParameterName:  aws.String(paramName),
 			ParameterValue: aws.String(paramValue),
 		})
 	}
-	pgParams = append(pgParams, &elasticache.ParameterNameValue{
-		ParameterName:  aws.String("cluster-enabled"),
-		ParameterValue: aws.String("yes"),
-	})
 
-	_, err = p.aws.ModifyCacheParameterGroupWithContext(ctx, &elasticache.ModifyCacheParameterGroupInput{
+	_, err := p.aws.ModifyCacheParameterGroupWithContext(ctx, &elasticache.ModifyCacheParameterGroupInput{
 		ParameterNameValues:     pgParams,
 		CacheParameterGroupName: aws.String(replicationGroupID),
 	})
@@ -84,11 +94,16 @@ func (p *RedisProvider) DeleteCacheParameterGroup(ctx context.Context, instanceI
 	return err
 }
 
+func (p *RedisProvider) Update(ctx context.Context, instanceID string, params providers.UpdateParameters) error {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	return p.modifyCacheParameterGroup(ctx, replicationGroupID, params.Parameters)
+}
+
 // Provision creates a replication group and a cache parameter group
 func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params providers.ProvisionParameters) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
-	err := p.createCacheParameterGroup(ctx, instanceID, params)
+	err := p.createCacheParameterGroup(ctx, replicationGroupID, params)
 	if err != nil {
 		return err
 	}
