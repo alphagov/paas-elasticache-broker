@@ -142,7 +142,7 @@ func (b *BrokerAPIClient) DoDeprovisionRequest(instanceID, serviceID, planID str
 	)
 }
 
-func (b *BrokerAPIClient) DoUpdateRequest(instanceID, serviceID, planID string, newPlanID string, paramJSON string) (*http.Response, error) {
+func (b *BrokerAPIClient) DoUpdateRequest(instanceID, serviceID, planID, oldPlanID, oldServiceID, orgID, spaceID, paramJSON string) (*http.Response, error) {
 	path := fmt.Sprintf("/v2/service_instances/%s", instanceID)
 
 	provisionDetailsJSON := []byte(fmt.Sprintf(`
@@ -150,11 +150,14 @@ func (b *BrokerAPIClient) DoUpdateRequest(instanceID, serviceID, planID string, 
 			"service_id": "%s",
 			"plan_id": "%s",
 			"previous_values": {
-				"plan_id": "%s"
+				"plan_id": "%s",
+				"service_id": "%s",
+				"org_id": "%s",
+				"space_id": "%s"
 			},
 			"parameters": %s
 		}
-	`, serviceID, planID, newPlanID, paramJSON))
+	`, serviceID, planID, oldPlanID, oldServiceID, orgID, spaceID, paramJSON))
 
 	return b.doRequest(
 		"PATCH",
@@ -212,8 +215,8 @@ func (b *BrokerAPIClient) DeprovisionInstance(instanceID, serviceID, planID stri
 	return resp.StatusCode, provisioningResponse.Operation, nil
 }
 
-func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID string, newPlanID string, paramJSON string) (responseCode int, operation string, err error) {
-	resp, err := b.DoUpdateRequest(instanceID, serviceID, planID, newPlanID, paramJSON)
+func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, orgID, spaceID, paramJSON string) (responseCode int, operation string, err error) {
+	resp, err := b.DoUpdateRequest(instanceID, serviceID, planID, oldPlanID, oldServiceID, orgID, spaceID, paramJSON)
 	if err != nil {
 		return 0, "", err
 	}
