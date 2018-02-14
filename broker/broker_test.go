@@ -2,12 +2,15 @@ package broker_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-elasticache-broker/broker"
-	"github.com/alphagov/paas-elasticache-broker/broker/mocks"
+	"github.com/alphagov/paas-elasticache-broker/providers"
+	"github.com/alphagov/paas-elasticache-broker/providers/mocks"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -52,7 +55,10 @@ var _ = Describe("Broker", func() {
 	})
 
 	Describe("Provision", func() {
-		var validProvisionDetails brokerapi.ProvisionDetails
+		var (
+			validProvisionDetails brokerapi.ProvisionDetails
+			fakeProvider          *mocks.FakeProvider
+		)
 
 		BeforeEach(func() {
 			validProvisionDetails = brokerapi.ProvisionDetails{
@@ -61,6 +67,7 @@ var _ = Describe("Broker", func() {
 				OrganizationGUID: "org-guid",
 				SpaceGUID:        "space-guid",
 			}
+			fakeProvider = &mocks.FakeProvider{}
 		})
 
 		It("logs a debug message when provision begins", func() {
@@ -115,7 +122,7 @@ var _ = Describe("Broker", func() {
 			Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
 			_, instanceID, params := fakeProvider.ProvisionArgsForCall(0)
 
-			expectedParams := broker.ProvisionParameters{
+			expectedParams := providers.ProvisionParameters{
 				InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
 				CacheParameterGroupName:    "default.redis3.2",
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
@@ -132,6 +139,7 @@ var _ = Describe("Broker", func() {
 					"plan-id":         validProvisionDetails.PlanID,
 					"organization-id": validProvisionDetails.OrganizationGUID,
 					"space-id":        validProvisionDetails.SpaceGUID,
+					"instance-id":     "instanceid",
 				},
 			}
 
@@ -168,6 +176,185 @@ var _ = Describe("Broker", func() {
 					OperationData: broker.Operation{Action: broker.ActionProvisioning}.String(),
 				}))
 		})
+
+		Context("when restoring from a snapshot", func() {
+			var (
+				restoreFromSnapshotInstanceGUID string
+				expectedRestoreFromSnapshotName string
+				snapshotOrgId                   string
+				snapshotSpaceId                 string
+				snapshotPlanId                  string
+			)
+
+			BeforeEach(func() {
+				snapshotOrgId = validProvisionDetails.OrganizationGUID
+				snapshotSpaceId = validProvisionDetails.SpaceGUID
+				snapshotPlanId = validProvisionDetails.PlanID
+			})
+
+			JustBeforeEach(func() {
+				restoreFromSnapshotInstanceGUID = "origin-instanceid"
+
+				validProvisionDetails.RawParameters = json.RawMessage(
+					`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `"}`,
+				)
+
+				fakeProvider.FindSnapshotsReturns(
+					[]providers.SnapshotInfo{
+						providers.SnapshotInfo{
+							Name:       restoreFromSnapshotInstanceGUID + "-snapshot-name-2-day-old",
+							CreateTime: time.Now().Add(-2 * 24 * time.Hour),
+							Tags: map[string]string{
+								"created-by":      validConfig.BrokerName,
+								"service-id":      validProvisionDetails.ServiceID,
+								"plan-id":         snapshotPlanId,
+								"organization-id": snapshotOrgId,
+								"space-id":        snapshotSpaceId,
+								"instance-id":     "instanceid",
+							},
+						},
+						providers.SnapshotInfo{
+							Name:       restoreFromSnapshotInstanceGUID + "-snapshot-name-1-day-old",
+							CreateTime: time.Now().Add(-1 * 24 * time.Hour),
+							Tags: map[string]string{
+								"created-by":      validConfig.BrokerName,
+								"service-id":      validProvisionDetails.ServiceID,
+								"plan-id":         snapshotPlanId,
+								"organization-id": snapshotOrgId,
+								"space-id":        snapshotSpaceId,
+								"instance-id":     "instanceid",
+							},
+						},
+					},
+					nil,
+				)
+
+				expectedRestoreFromSnapshotName = restoreFromSnapshotInstanceGUID + "-snapshot-name-1-day-old"
+
+			})
+
+			Context("and no snapshots are found", func() {
+				JustBeforeEach(func() {
+					fakeProvider.FindSnapshotsReturns(
+						[]providers.SnapshotInfo{},
+						nil,
+					)
+
+					expectedRestoreFromSnapshotName = restoreFromSnapshotInstanceGUID + "snapshot-name-1-day-old"
+				})
+				It("returns the correct error", func() {
+					b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+					_, err := b.Provision(context.Background(), "myinstance", validProvisionDetails, true)
+
+					Expect(err).To(MatchError("No snapshots found for: origin-instanceid"))
+					Expect(fakeProvider.FindSnapshotsCallCount()).To(Equal(1))
+				})
+			})
+
+			Context("when querying the snapshots fails", func() {
+				JustBeforeEach(func() {
+					fakeProvider.FindSnapshotsReturns(
+						[]providers.SnapshotInfo{},
+						errors.New("ERROR GETTING SNAPSHOTS"),
+					)
+				})
+				It("returns the correct error", func() {
+					b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+					_, err := b.Provision(context.Background(), "myinstance", validProvisionDetails, true)
+
+					Expect(err).To(MatchError("ERROR GETTING SNAPSHOTS"))
+					Expect(fakeProvider.FindSnapshotsCallCount()).To(Equal(1))
+				})
+			})
+
+			It("passes the correct parameters to the Provider with the latest snapshot", func() {
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+				b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+
+				Expect(fakeProvider.FindSnapshotsCallCount()).To(Equal(1))
+
+				Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
+				_, instanceID, params := fakeProvider.ProvisionArgsForCall(0)
+
+				expectedParams := providers.ProvisionParameters{
+					InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
+					CacheParameterGroupName:    "default.redis3.2",
+					SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
+					CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
+					PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
+					ReplicasPerNodeGroup:       0,
+					ShardCount:                 1,
+					SnapshotRetentionLimit:     0,
+					RestoreFromSnapshot:        &expectedRestoreFromSnapshotName,
+					Description:                "Cloud Foundry service",
+					Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
+					Tags: map[string]string{
+						"created-by":      validConfig.BrokerName,
+						"service-id":      validProvisionDetails.ServiceID,
+						"plan-id":         validProvisionDetails.PlanID,
+						"organization-id": validProvisionDetails.OrganizationGUID,
+						"space-id":        validProvisionDetails.SpaceGUID,
+						"instance-id":     "instanceid",
+					},
+				}
+
+				Expect(instanceID).To(Equal("instanceid"))
+				Expect(params).To(Equal(expectedParams))
+			})
+
+			Context("when the snapshot is in a different space", func() {
+				BeforeEach(func() {
+					snapshotSpaceId = "other-space-id"
+				})
+
+				It("should fail to restore", func() {
+					b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+					_, err := b.Provision(context.Background(), "myinstance", validProvisionDetails, true)
+
+					Expect(err).To(MatchError("The service instance you are getting a snapshot from is not in the same org or space"))
+					Expect(fakeProvider.FindSnapshotsCallCount()).To(Equal(1))
+					Expect(fakeProvider.ProvisionCallCount()).To(Equal(0))
+				})
+			})
+
+			Context("when the snapshot is in a different org", func() {
+				BeforeEach(func() {
+					snapshotOrgId = "other-org-id"
+				})
+
+				It("should fail to restore", func() {
+					b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+					_, err := b.Provision(context.Background(), "myinstance", validProvisionDetails, true)
+
+					Expect(err).To(MatchError("The service instance you are getting a snapshot from is not in the same org or space"))
+					Expect(fakeProvider.FindSnapshotsCallCount()).To(Equal(1))
+					Expect(fakeProvider.ProvisionCallCount()).To(Equal(0))
+				})
+			})
+
+			Context("if it is using a different plan", func() {
+				BeforeEach(func() {
+					snapshotPlanId = "other-plan-id"
+				})
+
+				It("should fail to restore", func() {
+					b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+					_, err := b.Provision(context.Background(), "myinstance", validProvisionDetails, true)
+
+					Expect(err).To(MatchError("You must use the same plan as the service instance you are getting a snapshot from"))
+					Expect(fakeProvider.FindSnapshotsCallCount()).To(Equal(1))
+					Expect(fakeProvider.ProvisionCallCount()).To(Equal(0))
+				})
+			})
+
+		})
+
 	})
 
 	Describe("Deprovision", func() {
@@ -224,7 +411,7 @@ var _ = Describe("Broker", func() {
 			Expect(fakeProvider.DeprovisionCallCount()).To(Equal(1))
 			_, instanceID, params := fakeProvider.DeprovisionArgsForCall(0)
 
-			expectedParams := broker.DeprovisionParameters{}
+			expectedParams := providers.DeprovisionParameters{}
 
 			Expect(instanceID).To(Equal("instanceid"))
 			Expect(params).To(Equal(expectedParams))
@@ -264,7 +451,7 @@ var _ = Describe("Broker", func() {
 	Describe("LastOperation", func() {
 		It("returns last operation data when the instance is available", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			Expect(b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)).
@@ -312,7 +499,7 @@ var _ = Describe("Broker", func() {
 
 		It("accepts empty operation data temporarily", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", "")
@@ -321,7 +508,7 @@ var _ = Describe("Broker", func() {
 
 		It("returns an error if last operation data is not json", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", "I am not JSON")
@@ -330,7 +517,7 @@ var _ = Describe("Broker", func() {
 
 		It("returns an error if last operation data does not contain an action", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(broker.Available, "i love brokers", nil)
+			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", "{}")
@@ -341,7 +528,7 @@ var _ = Describe("Broker", func() {
 			It("returns ErrInstanceDoesNotExist when instance does not exist", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 
 				_, err := b.LastOperation(context.Background(), "myinstance", `{"action": "provisioning"}`)
 				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(0))
@@ -353,7 +540,7 @@ var _ = Describe("Broker", func() {
 			It("deletes the cache parameter group if the instance doesn't exist and returns ErrInstanceDoesNotExist", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 				ctx := context.Background()
 				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
 
@@ -368,7 +555,7 @@ var _ = Describe("Broker", func() {
 			It("returns an error if deleting the cache parameter group fails", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(broker.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 				deleteError := errors.New("this is an error")
 				fakeProvider.DeleteCacheParameterGroupReturns(deleteError)
 				ctx := context.Background()
@@ -395,15 +582,15 @@ var _ = Describe("Broker", func() {
 
 	Describe("state mapping from AWS to brokerapi package", func() {
 		DescribeTable("known states",
-			func(from broker.ServiceState, to brokerapi.LastOperationState) {
+			func(from providers.ServiceState, to brokerapi.LastOperationState) {
 				Expect(broker.ProviderStatesMapping(from)).To(Equal(to))
 			},
-			Entry("available => succeeded", broker.Available, brokerapi.Succeeded),
-			Entry("create-failed => failure", broker.CreateFailed, brokerapi.Failed),
-			Entry("creating => in progress", broker.Creating, brokerapi.InProgress),
-			Entry("modifying => in progress", broker.Modifying, brokerapi.InProgress),
-			Entry("deleting => in progress", broker.Deleting, brokerapi.InProgress),
-			Entry("snapshotting => in progress", broker.Snapshotting, brokerapi.InProgress),
+			Entry("available => succeeded", providers.Available, brokerapi.Succeeded),
+			Entry("create-failed => failure", providers.CreateFailed, brokerapi.Failed),
+			Entry("creating => in progress", providers.Creating, brokerapi.InProgress),
+			Entry("modifying => in progress", providers.Modifying, brokerapi.InProgress),
+			Entry("deleting => in progress", providers.Deleting, brokerapi.InProgress),
+			Entry("snapshotting => in progress", providers.Snapshotting, brokerapi.InProgress),
 		)
 
 		It("errors on unknown state and returns 'in progress'", func() {
@@ -418,7 +605,7 @@ var _ = Describe("Broker", func() {
 			ctx := context.Background()
 			instanceID := "test-instance"
 			bindingID := "test-binding"
-			expectedCredentials := &broker.Credentials{
+			expectedCredentials := &providers.Credentials{
 				Host: "test-host",
 			}
 

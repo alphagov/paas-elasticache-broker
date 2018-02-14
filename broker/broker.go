@@ -5,16 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"
+
+	"github.com/alphagov/paas-elasticache-broker/providers"
 )
 
 // Broker is the open service broker API implementation for AWS Elasticache Redis
 type Broker struct {
 	config   Config
-	provider Provider
+	provider providers.Provider
 	logger   lager.Logger
 }
 
@@ -30,7 +33,7 @@ func (o Operation) String() string {
 }
 
 // New creates a new broker instance
-func New(config Config, provider Provider, logger lager.Logger) *Broker {
+func New(config Config, provider providers.Provider, logger lager.Logger) *Broker {
 	return &Broker{
 		config:   config,
 		provider: provider,
@@ -44,6 +47,13 @@ const (
 	ActionDeprovisioning = "deprovisioning"
 	ActionUpdating       = "updating"
 )
+
+// Sort providers.SnapshotInfo
+type ByCreateTime []providers.SnapshotInfo
+
+func (ct ByCreateTime) Len() int           { return len(ct) }
+func (ct ByCreateTime) Swap(i, j int)      { ct[i], ct[j] = ct[j], ct[i] }
+func (ct ByCreateTime) Less(i, j int) bool { return ct[i].CreateTime.After(ct[j].CreateTime) }
 
 // Services returns with the provided services
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
@@ -67,7 +77,49 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("service plan %s: %s", details.PlanID, err)
 	}
 
-	provisionParams := ProvisionParameters{
+	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelFunc()
+
+	provisionParameters := &ProvisionParameters{}
+	if len(details.RawParameters) > 0 {
+		var err error
+		provisionParameters, err = ParseProvisionParameters(details.RawParameters)
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+	}
+
+	var restoreFromSnapshotName *string
+	if provisionParameters.RestoreFromLatestSnapshotOf != nil {
+		snapshots, err := b.provider.FindSnapshots(providerCtx, *provisionParameters.RestoreFromLatestSnapshotOf)
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+		if len(snapshots) == 0 {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("No snapshots found for: %s", *provisionParameters.RestoreFromLatestSnapshotOf)
+		}
+		sort.Sort(ByCreateTime(snapshots))
+		latestSnapshot := snapshots[0]
+
+		if snapshotSpaceId, ok := latestSnapshot.Tags["space-id"]; !ok || snapshotSpaceId != details.SpaceGUID {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+		}
+		if snapshotOrgId, ok := latestSnapshot.Tags["organization-id"]; !ok || snapshotOrgId != details.OrganizationGUID {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+		}
+		if snapshotPlanId, ok := latestSnapshot.Tags["plan-id"]; !ok || snapshotPlanId != details.PlanID {
+			return brokerapi.ProvisionedServiceSpec{},
+				fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
+		}
+
+		restoreFromSnapshotName = &snapshots[0].Name
+
+	}
+
+	provisionParams := providers.ProvisionParameters{
 		InstanceType:               planConfig.InstanceType,
 		CacheParameterGroupName:    "default.redis3.2",
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
@@ -76,6 +128,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		ReplicasPerNodeGroup:       planConfig.ReplicasPerNodeGroup,
 		ShardCount:                 planConfig.ShardCount,
 		SnapshotRetentionLimit:     planConfig.SnapshotRetentionLimit,
+		RestoreFromSnapshot:        restoreFromSnapshotName,
 		Description:                "Cloud Foundry service",
 		Parameters:                 planConfig.Parameters,
 		Tags: map[string]string{
@@ -84,11 +137,9 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 			"plan-id":         details.PlanID,
 			"organization-id": details.OrganizationGUID,
 			"space-id":        details.SpaceGUID,
+			"instance-id":     instanceID,
 		},
 	}
-
-	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
-	defer cancelFunc()
 
 	err = b.provider.Provision(providerCtx, instanceID, provisionParams)
 	if err != nil {
@@ -138,7 +189,7 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFunc()
 
-	err := b.provider.Deprovision(providerCtx, instanceID, DeprovisionParameters{})
+	err := b.provider.Deprovision(providerCtx, instanceID, providers.DeprovisionParameters{})
 	if err != nil {
 		return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("provider %s for plan %s: %s", "redis", details.PlanID, err)
 	}
@@ -210,7 +261,7 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 		return brokerapi.LastOperation{}, fmt.Errorf("error getting state for %s: %s", instanceID, err)
 	}
 
-	if state == NonExisting {
+	if state == providers.NonExisting {
 		if operation.Action == ActionDeprovisioning {
 			err = b.provider.DeleteCacheParameterGroup(providerCtx, instanceID)
 			if err != nil {
@@ -233,19 +284,19 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 	}, nil
 }
 
-func ProviderStatesMapping(state ServiceState) (brokerapi.LastOperationState, error) {
+func ProviderStatesMapping(state providers.ServiceState) (brokerapi.LastOperationState, error) {
 	switch state {
-	case Available:
+	case providers.Available:
 		return brokerapi.Succeeded, nil
-	case CreateFailed:
+	case providers.CreateFailed:
 		return brokerapi.Failed, nil
-	case Creating:
+	case providers.Creating:
 		fallthrough
-	case Modifying:
+	case providers.Modifying:
 		fallthrough
-	case Deleting:
+	case providers.Deleting:
 		fallthrough
-	case Snapshotting:
+	case providers.Snapshotting:
 		return brokerapi.InProgress, nil
 	}
 	return brokerapi.InProgress, fmt.Errorf("Unknown service state: %s", state)

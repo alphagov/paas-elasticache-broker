@@ -11,29 +11,35 @@ import (
 	"strings"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/alphagov/paas-elasticache-broker/broker"
+	"github.com/alphagov/paas-elasticache-broker/providers"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 )
 
 // Provider is the Redis broker provider
-type Provider struct {
-	aws           ElastiCache
+type RedisProvider struct {
+	aws           providers.ElastiCache
+	awsAccountID  string
+	awsPartition  string
+	awsRegion     string
 	logger        lager.Logger
 	authTokenSeed string
 }
 
 // NewProvider creates a new Redis provider
-func NewProvider(elasticache ElastiCache, logger lager.Logger, authTokenSeed string) *Provider {
-	return &Provider{
+func NewProvider(elasticache providers.ElastiCache, awsAccountID, awsPartition, awsRegion string, logger lager.Logger, authTokenSeed string) *RedisProvider {
+	return &RedisProvider{
 		aws:           elasticache,
+		awsAccountID:  awsAccountID,
+		awsPartition:  awsPartition,
+		awsRegion:     awsRegion,
 		logger:        logger,
 		authTokenSeed: authTokenSeed,
 	}
 }
 
-func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID string, params broker.ProvisionParameters) error {
+func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, instanceID string, params providers.ProvisionParameters) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 	_, err := p.aws.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
 		CacheParameterGroupFamily: aws.String("redis3.2"),
@@ -63,7 +69,7 @@ func (p *Provider) createCacheParameterGroup(ctx context.Context, instanceID str
 	return err
 }
 
-func (p *Provider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
+func (p *RedisProvider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 	_, err := p.aws.DeleteCacheParameterGroupWithContext(ctx, &elasticache.DeleteCacheParameterGroupInput{
 		CacheParameterGroupName: aws.String(replicationGroupID),
@@ -79,7 +85,7 @@ func (p *Provider) DeleteCacheParameterGroup(ctx context.Context, instanceID str
 }
 
 // Provision creates a replication group and a cache parameter group
-func (p *Provider) Provision(ctx context.Context, instanceID string, params broker.ProvisionParameters) error {
+func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params providers.ProvisionParameters) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
 	err := p.createCacheParameterGroup(ctx, instanceID, params)
@@ -108,6 +114,7 @@ func (p *Provider) Provision(ctx context.Context, instanceID string, params brok
 		ReplicasPerNodeGroup:        aws.Int64(params.ReplicasPerNodeGroup),
 		SnapshotRetentionLimit:      aws.Int64(params.SnapshotRetentionLimit),
 		SnapshotWindow:              aws.String("02:00-05:00"),
+		SnapshotName:                params.RestoreFromSnapshot,
 	}
 
 	for tagName, tagValue := range params.Tags {
@@ -122,7 +129,7 @@ func (p *Provider) Provision(ctx context.Context, instanceID string, params brok
 }
 
 // Deprovision deletes the replication group
-func (p *Provider) Deprovision(ctx context.Context, instanceID string, params broker.DeprovisionParameters) error {
+func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, params providers.DeprovisionParameters) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
 	input := &elasticache.DeleteReplicationGroupInput{
@@ -137,30 +144,30 @@ func (p *Provider) Deprovision(ctx context.Context, instanceID string, params br
 }
 
 // GetState returns with the state of an existing cluster
-// If the cluster doesn't exist we return with the broker.NonExisting state
-func (p *Provider) GetState(ctx context.Context, instanceID string) (broker.ServiceState, string, error) {
+// If the cluster doesn't exist we return with the providers.NonExisting state
+func (p *RedisProvider) GetState(ctx context.Context, instanceID string) (providers.ServiceState, string, error) {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
 	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == elasticache.ErrCodeReplicationGroupNotFoundFault {
-				return broker.NonExisting, fmt.Sprintf("Replication group does not exist: %s", replicationGroupID), nil
+				return providers.NonExisting, fmt.Sprintf("Replication group does not exist: %s", replicationGroupID), nil
 			}
 		}
-		return broker.ServiceState(""), "", err
+		return providers.ServiceState(""), "", err
 	}
 
 	if replicationGroup.Status == nil {
-		return broker.ServiceState(""), "", fmt.Errorf("Invalid response from AWS: status is missing for %s", replicationGroupID)
+		return providers.ServiceState(""), "", fmt.Errorf("Invalid response from AWS: status is missing for %s", replicationGroupID)
 	}
 
 	message := fmt.Sprintf("ElastiCache state is %s for %s", *replicationGroup.Status, replicationGroupID)
 
-	return broker.ServiceState(*replicationGroup.Status), message, nil
+	return providers.ServiceState(*replicationGroup.Status), message, nil
 }
 
-func (p *Provider) describeReplicationGroup(ctx context.Context, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
+func (p *RedisProvider) describeReplicationGroup(ctx context.Context, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
 	output, err := p.aws.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
 		ReplicationGroupId: aws.String(replicationGroupID),
 	})
@@ -177,7 +184,7 @@ func (p *Provider) describeReplicationGroup(ctx context.Context, replicationGrou
 }
 
 // GenerateCredentials generates the client credentials for a Redis instance and an app
-func (p *Provider) GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*broker.Credentials, error) {
+func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*providers.Credentials, error) {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
 	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
@@ -210,7 +217,7 @@ func (p *Provider) GenerateCredentials(ctx context.Context, instanceID, bindingI
 		Host:   fmt.Sprintf("%s:%d", host, port),
 		User:   url.UserPassword("x", password),
 	}
-	return &broker.Credentials{
+	return &providers.Credentials{
 		Host:       host,
 		Port:       port,
 		Name:       replicationGroupID,
@@ -224,8 +231,60 @@ func (p *Provider) GenerateCredentials(ctx context.Context, instanceID, bindingI
 //
 // The method does nothing because we can't revoke the credentials as there is one common password
 // for a Redis service instance
-func (p *Provider) RevokeCredentials(ctx context.Context, instanceID, bindingID string) error {
+func (p *RedisProvider) RevokeCredentials(ctx context.Context, instanceID, bindingID string) error {
 	return nil
+}
+
+// FindSnapshots returns the list of snapshots found for a given instance ID
+func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([]providers.SnapshotInfo, error) {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	describeSnapshotsParams := &elasticache.DescribeSnapshotsInput{
+		ReplicationGroupId: aws.String(replicationGroupID),
+	}
+	snapshots := []*elasticache.Snapshot{}
+	err := p.aws.DescribeSnapshotsPagesWithContext(ctx, describeSnapshotsParams, func(page *elasticache.DescribeSnapshotsOutput, lastPage bool) bool {
+		snapshots = append(snapshots, page.Snapshots...)
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	snapshotInfos := []providers.SnapshotInfo{}
+	for _, snapshot := range snapshots {
+		if snapshot.SnapshotName == nil ||
+			len(snapshot.NodeSnapshots) == 0 ||
+			snapshot.NodeSnapshots[0].SnapshotCreateTime == nil {
+			return nil, fmt.Errorf("Invalid response from AWS: Missing values for snapshot for elasticache cluster %s", instanceID)
+		}
+		tagList, err := p.aws.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
+			ResourceName: aws.String(p.snapshotARN(*snapshot.SnapshotName)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		snapshotInfos = append(snapshotInfos, providers.SnapshotInfo{
+			Name:       *snapshot.SnapshotName,
+			CreateTime: *snapshot.NodeSnapshots[0].SnapshotCreateTime,
+			Tags:       tagsValues(tagList.TagList),
+		})
+	}
+	return snapshotInfos, nil
+}
+
+func (p *RedisProvider) snapshotARN(snapshotID string) string {
+	return fmt.Sprintf("arn:%s:elasticache:%s:%s:snapshot:%s", p.awsPartition, p.awsRegion, p.awsAccountID, snapshotID)
+}
+
+func tagsValues(elasticacheTags []*elasticache.Tag) map[string]string {
+	tags := map[string]string{}
+	if elasticacheTags == nil {
+		return tags
+	}
+	for _, t := range elasticacheTags {
+		tags[aws.StringValue(t.Key)] = aws.StringValue(t.Value)
+	}
+	return tags
 }
 
 // GenerateReplicationGroupName generates a valid ElastiCache replication group name

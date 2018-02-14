@@ -1,4 +1,4 @@
-package redis
+package providers
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
@@ -16,4 +16,6 @@ type ElastiCache interface {
 	DeleteReplicationGroupWithContext(ctx aws.Context, input *elasticache.DeleteReplicationGroupInput, opts ...request.Option) (*elasticache.DeleteReplicationGroupOutput, error)
 	DescribeReplicationGroupsWithContext(ctx aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error)
 	ModifyCacheParameterGroupWithContext(ctx aws.Context, input *elasticache.ModifyCacheParameterGroupInput, opts ...request.Option) (*elasticache.CacheParameterGroupNameMessage, error)
+	DescribeSnapshotsPagesWithContext(ctx aws.Context, input *elasticache.DescribeSnapshotsInput, fn func(*elasticache.DescribeSnapshotsOutput, bool) bool, opts ...request.Option) error
+	ListTagsForResourceWithContext(ctx aws.Context, input *elasticache.ListTagsForResourceInput, opts ...request.Option) (*elasticache.TagListMessage, error)
 }

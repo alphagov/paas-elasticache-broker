@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/sts"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -114,6 +115,26 @@ func DestroySecurityGroup(id *string, session *session.Session) error {
 	})
 
 	return err
+}
+
+func ReplicationGroupARN(session *session.Session, replicationGroupID string) (string, error) {
+	stssvc := sts.New(session)
+	getCallerIdentityOutput, err := stssvc.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		return "", err
+	}
+
+	awsPartition := "aws"
+	awsRegion := aws.StringValue(session.Config.Region)
+	awsAccountID := aws.StringValue(getCallerIdentityOutput.Account)
+
+	return fmt.Sprintf(
+		"arn:%s:elasticache:%s:%s:cluster:%s-0001-001",
+		awsPartition,
+		awsRegion,
+		awsAccountID,
+		replicationGroupID,
+	), nil
 }
 
 func getVPCID(session *session.Session) (string, error) {

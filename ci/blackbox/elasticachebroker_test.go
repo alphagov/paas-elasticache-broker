@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphagov/paas-elasticache-broker/ci/helpers"
-	"github.com/alphagov/paas-elasticache-broker/redis"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	redisclient "github.com/garyburd/redigo/redis"
 	uuid "github.com/satori/go.uuid"
+
+	"github.com/alphagov/paas-elasticache-broker/ci/helpers"
+	"github.com/alphagov/paas-elasticache-broker/providers/redis"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -26,21 +27,20 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 	Describe("Broker lifecycle", func() {
 
 		var (
-			planID      = PLAN_MICRO_UUID
-			serviceID   = SERVICE_REDIS_UUID
-			instanceID  string
-			appID       string
-			bindingID   string
-			credentials map[string]interface{}
-			conn        redisclient.Conn
+			planID             = PLAN_MICRO_UUID
+			serviceID          = SERVICE_REDIS_UUID
+			instanceID         string
+			appID              string
+			bindingID          string
+			snapshotName       string
+			restoredInstanceID string
+			credentials        map[string]interface{}
+			conn               redisclient.Conn
 		)
 
 		// FIXME: if the broker ends up destroying parameter groups itself, this can be removed.
 		AfterEach(func() {
 			if instanceID != "" {
-				awsSession := session.Must(session.NewSession(&aws.Config{
-					Region: aws.String(elastiCacheBrokerConfig.Region)},
-				))
 				paramGroupName := redis.GenerateReplicationGroupName(instanceID)
 				helpers.DestroyParameterGroup(&paramGroupName, awsSession)
 			}
@@ -50,8 +50,12 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 			instanceID = uuid.NewV4().String()
 			appID = uuid.NewV4().String()
 			bindingID = uuid.NewV4().String()
+			snapshotName = fmt.Sprintf("test-%s-snapshot", instanceID)
+			restoredInstanceID = uuid.NewV4().String()
 
 			brokerAPIClient.AcceptsIncomplete = true
+
+			elasticacheService := elasticache.New(awsSession)
 
 			By("provisioning", func() {
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
@@ -67,6 +71,45 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(instanceID, serviceID, planID, operation, "gone")
 				Expect(state).To(Equal("gone"))
+			})
+
+			By("checking that the new replication group has the right tags", func() {
+				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
+				replicationGroupARN, err := helpers.ReplicationGroupARN(awsSession, replicationGroupID)
+				Expect(err).ToNot(HaveOccurred())
+
+				tagList, err := elasticacheService.ListTagsForResource(
+					&elasticache.ListTagsForResourceInput{
+						ResourceName: aws.String(replicationGroupARN),
+					})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(tagList.TagList).To(ConsistOf(
+					&elasticache.Tag{
+						Key:   aws.String("created-by"),
+						Value: aws.String(brokerName),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("service-id"),
+						Value: aws.String(serviceID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("plan-id"),
+						Value: aws.String(planID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("organization-id"),
+						Value: aws.String(brokerAPIClient.DefaultOrganizationID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("space-id"),
+						Value: aws.String(brokerAPIClient.DefaultSpaceID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("instance-id"),
+						Value: aws.String(instanceID),
+					},
+				))
 			})
 
 			By("binding a resource to the service", func() {
@@ -157,6 +200,113 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 					redisclient.DialUseTLS(false),
 				)
 				Expect(err).To(HaveOccurred())
+			})
+
+			By("preparing a snapshot", func() {
+				_, err := conn.Do("SET", "should-be-present-on-restored-instance", "yup")
+				Expect(err).ToNot(HaveOccurred())
+
+				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
+				_, err = elasticacheService.CreateSnapshot(&elasticache.CreateSnapshotInput{
+					ReplicationGroupId: aws.String(replicationGroupID),
+					SnapshotName:       aws.String(snapshotName),
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				fmt.Fprint(GinkgoWriter, "Polling for snapshot preparation to complete")
+				Eventually(func() string {
+					fmt.Fprint(GinkgoWriter, ".")
+					describeSnapshotsOutput, err := elasticacheService.DescribeSnapshots(&elasticache.DescribeSnapshotsInput{
+						ReplicationGroupId: aws.String(replicationGroupID),
+						SnapshotName:       aws.String(snapshotName),
+					})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(describeSnapshotsOutput.Snapshots).To(HaveLen(1))
+					snapshotState := describeSnapshotsOutput.Snapshots[0].SnapshotStatus
+					return aws.StringValue(snapshotState)
+				}, 10*time.Minute, 10*time.Second).Should(Equal("available"))
+				fmt.Fprintf(GinkgoWriter, "done.\n")
+			})
+
+			By("provisioning from a snapshot", func() {
+				provisionParams := fmt.Sprintf(`{"restore_from_latest_snapshot_of": "%s"}`, instanceID)
+				code, operation, err := brokerAPIClient.ProvisionInstance(restoredInstanceID, serviceID, planID, provisionParams)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(restoredInstanceID, serviceID, planID, operation, "succeeded")
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			defer By("deprovisioning the restored instance", func() {
+				code, operation, err := brokerAPIClient.DeprovisionInstance(restoredInstanceID, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(restoredInstanceID, serviceID, planID, operation, "gone")
+				Expect(state).To(Equal("gone"))
+			})
+
+			By("checking that the restored replication group has the right tags", func() {
+				replicationGroupID := redis.GenerateReplicationGroupName(restoredInstanceID)
+				replicationGroupARN, err := helpers.ReplicationGroupARN(awsSession, replicationGroupID)
+				Expect(err).ToNot(HaveOccurred())
+
+				tagList, err := elasticacheService.ListTagsForResource(
+					&elasticache.ListTagsForResourceInput{
+						ResourceName: aws.String(replicationGroupARN),
+					})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(tagList.TagList).To(ConsistOf(
+					&elasticache.Tag{
+						Key:   aws.String("created-by"),
+						Value: aws.String(brokerName),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("service-id"),
+						Value: aws.String(serviceID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("plan-id"),
+						Value: aws.String(planID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("organization-id"),
+						Value: aws.String(brokerAPIClient.DefaultOrganizationID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("space-id"),
+						Value: aws.String(brokerAPIClient.DefaultSpaceID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("instance-id"),
+						Value: aws.String(restoredInstanceID),
+					},
+				))
+			})
+
+			By("having restored data in the restored instance", func() {
+				code, bindingResponse, err := brokerAPIClient.Bind(restoredInstanceID, serviceID, planID, appID, bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(201))
+				Expect(bindingResponse).ToNot(BeNil())
+				credentials2 := bindingResponse.Credentials
+
+				uri, _ := credentials2["uri"].(string)
+				conn2, err := redisclient.DialURL(uri)
+				Expect(err).ToNot(HaveOccurred())
+
+				s, err := redisclient.String(conn2.Do("GET", "should-be-present-on-restored-instance"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(s).To(Equal("yup"))
+
+				err = conn2.Close()
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			defer By("unbinding the restored instance", func() {
+				code, err := brokerAPIClient.Unbind(restoredInstanceID, serviceID, planID, bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
 			})
 
 		})

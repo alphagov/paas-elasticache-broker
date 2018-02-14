@@ -11,10 +11,11 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-elasticache-broker/broker"
-	"github.com/alphagov/paas-elasticache-broker/redis"
+	"github.com/alphagov/paas-elasticache-broker/providers/redis"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-cf/brokerapi"
 )
 
@@ -47,11 +48,28 @@ func newLogger(logLevel string) lager.Logger {
 	return logger
 }
 
-func newBroker(config broker.Config, logger lager.Logger) *broker.Broker {
+func newBroker(config broker.Config, logger lager.Logger) (*broker.Broker, error) {
 	awsConfig := aws.NewConfig().WithRegion(config.Region)
 	awsSession := session.Must(session.NewSession(awsConfig))
 	svc := elasticache.New(awsSession)
-	return broker.New(config, redis.NewProvider(svc, logger, config.AuthTokenSeed), logger)
+
+	awsAccountID, err := userAccount(sts.New(awsSession))
+	if err != nil {
+		return nil, err
+	}
+	awsPartition := "aws"
+	awsRegion := config.Region
+
+	return broker.New(config, redis.NewProvider(svc, awsAccountID, awsPartition, awsRegion, logger, config.AuthTokenSeed), logger), nil
+}
+
+func userAccount(stssvc *sts.STS) (string, error) {
+	getCallerIdentityInput := &sts.GetCallerIdentityInput{}
+	getCallerIdentityOutput, err := stssvc.GetCallerIdentity(getCallerIdentityInput)
+	if err != nil {
+		return "", err
+	}
+	return *getCallerIdentityOutput.Account, nil
 }
 
 func newHTTPHandler(serviceBroker *broker.Broker, logger lager.Logger, config broker.Config) http.Handler {
@@ -79,7 +97,10 @@ func main() {
 
 	logger := newLogger(config.LogLevel)
 
-	serviceBroker := newBroker(config, logger)
+	serviceBroker, err := newBroker(config, logger)
+	if err != nil {
+		log.Fatalf("Error creating broker: %s", err)
+	}
 
 	server := newHTTPHandler(serviceBroker, logger, config)
 

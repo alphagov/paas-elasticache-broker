@@ -48,17 +48,21 @@ func BodyBytes(resp *http.Response) ([]byte, error) {
 }
 
 type BrokerAPIClient struct {
-	URL               string
-	Username          string
-	Password          string
-	AcceptsIncomplete bool
+	URL                   string
+	Username              string
+	Password              string
+	DefaultOrganizationID string
+	DefaultSpaceID        string
+	AcceptsIncomplete     bool
 }
 
-func NewBrokerAPIClient(url string, username string, password string) *BrokerAPIClient {
+func NewBrokerAPIClient(url string, username string, password string, defaultOrganizationID string, defaultSpaceID string) *BrokerAPIClient {
 	return &BrokerAPIClient{
-		URL:      url,
-		Username: username,
-		Password: password,
+		URL:                   url,
+		Username:              username,
+		Password:              password,
+		DefaultOrganizationID: defaultOrganizationID,
+		DefaultSpaceID:        defaultSpaceID,
 	}
 }
 
@@ -111,11 +115,11 @@ func (b *BrokerAPIClient) DoProvisionRequest(instanceID, serviceID, planID strin
 		{
 			"service_id": "%s",
 			"plan_id": "%s",
-			"organization_guid": "test-organization-id",
-			"space_guid": "space-id",
+			"organization_guid": "%s",
+			"space_guid": "%s",
 			"parameters": %s
 		}
-	`, serviceID, planID, paramJSON))
+	`, serviceID, planID, b.DefaultOrganizationID, b.DefaultSpaceID, paramJSON))
 
 	return b.doRequest(
 		"PUT",

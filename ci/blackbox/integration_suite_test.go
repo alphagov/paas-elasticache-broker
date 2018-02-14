@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
+	uuid "github.com/satori/go.uuid"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -31,8 +32,10 @@ var (
 
 	elastiCacheBrokerConfig broker.Config
 
+	awsSession                 *session.Session
 	elastiCacheSubnetGroupName *string
 	ec2SecurityGroupID         *string
+	brokerName                 string
 )
 
 func TestSuite(t *testing.T) {
@@ -44,7 +47,7 @@ func TestSuite(t *testing.T) {
 
 		originalConfig, err := broker.LoadConfig("./config.json")
 
-		awsSession := session.Must(session.NewSession(&aws.Config{
+		awsSession = session.Must(session.NewSession(&aws.Config{
 			Region: aws.String(originalConfig.Region)},
 		))
 
@@ -60,9 +63,15 @@ func TestSuite(t *testing.T) {
 		)
 		Expect(err).NotTo(HaveOccurred())
 
+		brokerName = fmt.Sprintf("%s-%s",
+			originalConfig.BrokerName,
+			uuid.NewV4().String(),
+		)
+
 		var configFileName string
 		elastiCacheBrokerConfig, configFileName, err = WriteCustomConfig(
 			originalConfig,
+			brokerName,
 			*elastiCacheSubnetGroupName,
 			*ec2SecurityGroupID,
 		)
@@ -86,6 +95,8 @@ func TestSuite(t *testing.T) {
 			elastiCacheBrokerUrl,
 			elastiCacheBrokerConfig.Username,
 			elastiCacheBrokerConfig.Password,
+			"test-organization-id",
+			"space-id",
 		)
 	})
 

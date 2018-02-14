@@ -6,7 +6,7 @@ unit: $(GOPATH)/bin/ginkgo
 	ginkgo -r --skipPackage=ci
 
 integration: $(GOPATH)/bin/ginkgo
-	ginkgo -r ci/blackbox
+	ginkgo -v -r ci/blackbox
 
 $(GOPATH)/bin/ginkgo:
 	cd vendor/github.com/onsi/ginkgo/ginkgo && go install .
