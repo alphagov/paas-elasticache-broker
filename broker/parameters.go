@@ -5,13 +5,16 @@ import (
 	"fmt"
 )
 
+const ParamRestoreLatestSnapshotOf = "restore_from_latest_snapshot_of"
+const ParamMaxMemoryPolicy = "maxmemory_policy"
+
 func ParseProvisionParameters(data []byte) (*ProvisionParameters, error) {
 	mapParams := map[string]interface{}{}
 	err := json.Unmarshal(data, &mapParams)
 	if err != nil {
 		return nil, err
 	}
-	validKeys := []string{"restore_from_latest_snapshot_of", "maxmemory-policy"}
+	validKeys := []string{ParamRestoreLatestSnapshotOf, ParamMaxMemoryPolicy}
 	for key := range mapParams {
 		valid := false
 		for _, validKey := range validKeys {
@@ -33,5 +36,5 @@ func ParseProvisionParameters(data []byte) (*ProvisionParameters, error) {
 
 type ProvisionParameters struct {
 	RestoreFromLatestSnapshotOf *string `json:"restore_from_latest_snapshot_of"`
-	MaxMemoryPolicy             *string `json:"maxmemory-policy"`
+	MaxMemoryPolicy             *string `json:"maxmemory_policy"`
 }

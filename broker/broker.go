@@ -89,6 +89,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		}
 	}
 
+	// TODO: parsing the user provided parameters should be done in the provider and not in the broker
 	var restoreFromSnapshotName *string
 	if userParameters.RestoreFromLatestSnapshotOf != nil {
 		snapshots, err := b.provider.FindSnapshots(providerCtx, *userParameters.RestoreFromLatestSnapshotOf)

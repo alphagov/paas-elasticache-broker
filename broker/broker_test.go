@@ -152,7 +152,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider := &mocks.FakeProvider{}
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			validProvisionDetails.RawParameters = []byte(`{"maxmemory-policy": "noeviction"}`)
+			validProvisionDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
 
 			_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
 			Expect(err).ToNot(HaveOccurred())
