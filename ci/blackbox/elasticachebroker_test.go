@@ -112,6 +112,51 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				))
 			})
 
+			By("checking that the cache parameter group has been set", func() {
+				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
+				res, err := elasticacheService.DescribeCacheParameters(&elasticache.DescribeCacheParametersInput{
+					CacheParameterGroupName: aws.String(replicationGroupID),
+				})
+				Expect(err).ToNot(HaveOccurred())
+				found := 0
+				for _, p := range res.Parameters {
+					if *p.ParameterName == "maxmemory-policy" {
+						found++
+						Expect(*p.ParameterValue).To(Equal("volatile-lru"))
+					}
+					if *p.ParameterName == "reserved-memory" {
+						found++
+						Expect(*p.ParameterValue).To(Equal("0"))
+					}
+				}
+				Expect(found).To(Equal(2))
+			})
+
+			By("updating parameters", func() {
+				updateParams := fmt.Sprintf(`{"maxmemory_policy": "noeviction"}`)
+				oldPlanID := planID
+				oldServiceID := serviceID
+				code, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+			})
+
+			By("checking that the cache parameter group has been updated", func() {
+				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
+				res, err := elasticacheService.DescribeCacheParameters(&elasticache.DescribeCacheParametersInput{
+					CacheParameterGroupName: aws.String(replicationGroupID),
+				})
+				Expect(err).ToNot(HaveOccurred())
+				found := 0
+				for _, p := range res.Parameters {
+					if *p.ParameterName == "maxmemory-policy" {
+						found++
+						Expect(*p.ParameterValue).To(Equal("noeviction"))
+					}
+				}
+				Expect(found).To(Equal(1))
+			})
+
 			By("binding a resource to the service", func() {
 				code, bindingResponse, err := brokerAPIClient.Bind(instanceID, serviceID, planID, appID, bindingID)
 				Expect(err).ToNot(HaveOccurred())

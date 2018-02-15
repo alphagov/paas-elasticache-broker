@@ -38,6 +38,10 @@ type DeprovisionParameters struct {
 	FinalSnapshotIdentifier string
 }
 
+type UpdateParameters struct {
+	Parameters map[string]string
+}
+
 type SnapshotInfo struct {
 	Name       string
 	CreateTime time.Time
@@ -49,6 +53,7 @@ type SnapshotInfo struct {
 //go:generate counterfeiter -o mocks/provider.go . Provider
 type Provider interface {
 	Provision(ctx context.Context, instanceID string, params ProvisionParameters) error
+	Update(ctx context.Context, instanceID string, params UpdateParameters) error
 	Deprovision(ctx context.Context, instanceID string, params DeprovisionParameters) error
 	GetState(ctx context.Context, instanceID string) (ServiceState, string, error)
 	GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*Credentials, error)

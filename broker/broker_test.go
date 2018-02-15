@@ -117,7 +117,8 @@ var _ = Describe("Broker", func() {
 			fakeProvider := &mocks.FakeProvider{}
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+			_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+			Expect(err).ToNot(HaveOccurred())
 
 			Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
 			_, instanceID, params := fakeProvider.ProvisionArgsForCall(0)
@@ -145,6 +146,38 @@ var _ = Describe("Broker", func() {
 
 			Expect(instanceID).To(Equal("instanceid"))
 			Expect(params).To(Equal(expectedParams))
+		})
+
+		It("passes the user provided parameters", func() {
+			fakeProvider := &mocks.FakeProvider{}
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+			validProvisionDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
+
+			_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
+			_, _, params := fakeProvider.ProvisionArgsForCall(0)
+
+			expectedParameters := map[string]string{
+				"reserved-memory":  "0",
+				"maxmemory-policy": "noeviction",
+			}
+
+			Expect(params.Parameters).To(Equal(expectedParameters))
+		})
+
+		Context("given an unknown user provided parameter", func() {
+			It("should return with error", func() {
+				fakeProvider := &mocks.FakeProvider{}
+				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+				validProvisionDetails.RawParameters = []byte(`{"unknown-foo": "bar"}`)
+
+				_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
+				Expect(err).To(MatchError("unknown parameter: unknown-foo"))
+			})
 		})
 
 		It("errors if provisioning fails", func() {
@@ -355,6 +388,114 @@ var _ = Describe("Broker", func() {
 
 		})
 
+	})
+
+	Describe("Update", func() {
+		var (
+			validUpdateDetails brokerapi.UpdateDetails
+			fakeProvider       *mocks.FakeProvider
+			b                  *broker.Broker
+		)
+
+		BeforeEach(func() {
+			validUpdateDetails = brokerapi.UpdateDetails{
+				ServiceID: "service1",
+				PlanID:    "plan1",
+				PreviousValues: brokerapi.PreviousValues{
+					ServiceID: "service1",
+					PlanID:    "plan1",
+					OrgID:     "org1",
+					SpaceID:   "space1",
+				},
+			}
+			fakeProvider = &mocks.FakeProvider{}
+			b = broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+		})
+
+		It("updates the service through the Provider", func() {
+			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.UpdateCallCount()).To(Equal(1))
+			_, id, params := fakeProvider.UpdateArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+
+			expectedParameters := providers.UpdateParameters{
+				Parameters: map[string]string{
+					"maxmemory-policy": "noeviction",
+				},
+			}
+
+			Expect(params).To(Equal(expectedParameters))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       true,
+				OperationData: broker.Operation{Action: broker.ActionUpdating}.String(),
+			}))
+		})
+
+		It("should return an error when no parameters are provided", func() {
+			validUpdateDetails.RawParameters = []byte(`{}`)
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(MatchError("no parameters provided"))
+
+			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+		})
+
+		It("rejects unknown parameters", func() {
+			validUpdateDetails.RawParameters = []byte(`{"unknown_foo": "bar"}`)
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(MatchError("unknown parameter: unknown_foo"))
+
+			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+		})
+
+		It("should return an error when provider fails to update the service", func() {
+			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
+
+			providerErr := errors.New("provider-err")
+			fakeProvider.UpdateReturnsOnCall(0, providerErr)
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(MatchError(providerErr))
+		})
+
+		It("should return error when attempting to change plan id", func() {
+			validUpdateDetails.PlanID = "plan2"
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(MatchError("changing plans is not currently supported"))
+
+			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+		})
+
+		It("should return error when attempting to change service id", func() {
+			validUpdateDetails.ServiceID = "service2"
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(MatchError("changing plans is not currently supported"))
+
+			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+		})
+
+		It("sets a deadline by which the Provider request should complete", func() {
+			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.UpdateCallCount()).To(Equal(1))
+			receivedContext, _, _ := fakeProvider.UpdateArgsForCall(0)
+
+			_, hasDeadline := receivedContext.Deadline()
+
+			Expect(hasDeadline).To(BeTrue())
+		})
 	})
 
 	Describe("Deprovision", func() {

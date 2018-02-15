@@ -279,7 +279,7 @@ var _ = Describe("Provider", func() {
 			state, stateMessage, stateErr := provider.GetState(ctx, instanceID)
 
 			Expect(state).To(Equal(providers.ServiceState("test status")))
-			Expect(stateMessage).To(Equal("ElastiCache state is test status for cf-qwkec4pxhft6q"))
+			Expect(stateMessage).To(ContainSubstring("status               : test status"))
 			Expect(stateErr).ToNot(HaveOccurred())
 
 			Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
@@ -288,6 +288,62 @@ var _ = Describe("Provider", func() {
 			Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
 				ReplicationGroupId: aws.String(replicationGroupID),
 			}))
+		})
+
+		It("returns a message with details for useful configuration values", func() {
+			replicationGroupID := "cf-qwkec4pxhft6q"
+			cacheClusterId := replicationGroupID + "-001-001"
+
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(&elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{
+						ReplicationGroupId: aws.String(replicationGroupID),
+						Status:             aws.String("OK"),
+						MemberClusters: []*string{
+							aws.String(cacheClusterId),
+						},
+						SnapshotWindow: aws.String("05:01-09:01"),
+					},
+				},
+			}, nil)
+
+			mockElasticache.DescribeCacheClustersWithContextReturns(&elasticache.DescribeCacheClustersOutput{
+				CacheClusters: []*elasticache.CacheCluster{
+					{
+						CacheClusterId:             aws.String(cacheClusterId),
+						PreferredMaintenanceWindow: aws.String("sun:23:01-mon:01:31"),
+						EngineVersion:              aws.String("9.9.9"),
+					},
+				},
+			}, nil)
+
+			mockElasticache.DescribeCacheParametersWithContextReturns(&elasticache.DescribeCacheParametersOutput{
+				Parameters: []*elasticache.Parameter{
+					{
+						ParameterName:  aws.String("maxmemory-policy"),
+						ParameterValue: aws.String("test-ttl"),
+					},
+					{
+						ParameterName:  aws.String("some-other-param"),
+						ParameterValue: aws.String("some-other-value"),
+					},
+				},
+			}, nil)
+
+			instanceID := "foobar"
+			ctx := context.Background()
+
+			_, stateMessage, stateErr := provider.GetState(ctx, instanceID)
+			Expect(stateErr).ToNot(HaveOccurred())
+
+			Expect(mockElasticache.DescribeCacheParametersWithContextCallCount()).To(Equal(1))
+
+			Expect(stateMessage).To(ContainSubstring("status               : OK"))
+			Expect(stateMessage).To(ContainSubstring("engine version       : 9.9.9"))
+			Expect(stateMessage).To(ContainSubstring("maxmemory policy     : test-ttl"))
+			Expect(stateMessage).To(ContainSubstring("daily backup window  : 05:01-09:01"))
+			Expect(stateMessage).To(ContainSubstring("maintenance window   : sun:23:01-mon:01:31"))
+
 		})
 
 		It("handles errors from the AWS API", func() {
@@ -745,6 +801,59 @@ var _ = Describe("Provider", func() {
 			Expect(err).To(MatchError(
 				ContainSubstring("Invalid response from AWS: Missing values for snapshot for elasticache cluster")),
 			)
+		})
+	})
+
+	Context("when updating", func() {
+		It("should update the cache parameter group", func() {
+			replicationGroupID := "cf-qwkec4pxhft6q"
+			instanceID := "foobar"
+
+			ctx := context.Background()
+
+			err := provider.Update(ctx, instanceID, providers.UpdateParameters{
+				Parameters: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(1))
+			receivedCtx, paramGroupInput, _ := mockElasticache.ModifyCacheParameterGroupWithContextArgsForCall(0)
+			Expect(receivedCtx).To(Equal(ctx))
+			Expect(paramGroupInput.CacheParameterGroupName).To(Equal(aws.String(replicationGroupID)))
+			Expect(paramGroupInput.ParameterNameValues).To(ConsistOf([]*elasticache.ParameterNameValue{
+				{
+					ParameterName:  aws.String("key1"),
+					ParameterValue: aws.String("value1"),
+				},
+				{
+					ParameterName:  aws.String("key2"),
+					ParameterValue: aws.String("value2"),
+				},
+			}))
+		})
+
+		It("should not modify the cache parameter group if no params are passed", func() {
+			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+				Parameters: map[string]string{},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(0))
+		})
+
+		It("should return with error if AWS API returns with an error", func() {
+			awsError := errors.New("some error")
+			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, awsError)
+
+			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+				Parameters: map[string]string{
+					"key1": "value1",
+				},
+			})
+			Expect(err).To(MatchError(awsError))
 		})
 	})
 })
