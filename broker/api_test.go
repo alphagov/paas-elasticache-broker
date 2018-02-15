@@ -259,4 +259,72 @@ var _ = Describe("Broker", func() {
 			Expect(resp.Code).To(Equal(410))
 		})
 	})
+
+	Describe("Update", func() {
+		It("accepts an update request", func() {
+			instanceID := uuid.NewV4().String()
+			resp := DoRequest(brokerAPI, NewRequest(
+				"PATCH",
+				"/v2/service_instances/"+instanceID,
+				strings.NewReader(`{
+					"service_id": "service1",
+					"plan_id": "plan1",
+					"previous_values": {
+						"plan_id": "plan1",
+						"service_id": "service1",
+						"org_id": "test-organization-id",
+						"space_id": "space-id"
+					},
+					"parameters": {"maxmemory_policy": "inexhaustible"}
+				}`),
+				credentials.Username,
+				credentials.Password,
+				url.Values{"accepts_incomplete": []string{"true"}},
+			))
+
+			Expect(resp.Code).To(Equal(202))
+		})
+
+		It("responds with a 500 when an unknown deprovisioning error occurs", func() {
+			instanceID := uuid.NewV4().String()
+			fakeProvider.UpdateReturns(errors.New("bad stuff"))
+
+			resp := DoRequest(brokerAPI, NewRequest(
+				"PATCH",
+				"/v2/service_instances/"+instanceID,
+				strings.NewReader(`{
+					"service_id": "service1",
+					"plan_id": "plan1",
+					"previous_values": {
+						"plan_id": "plan1",
+						"service_id": "service1",
+						"org_id": "test-organization-id",
+						"space_id": "space-id"
+					},
+					"parameters": {"maxmemory_policy": "inexhaustible"}
+				}`),
+				credentials.Username,
+				credentials.Password,
+				url.Values{"accepts_incomplete": []string{"true"}},
+			))
+
+			Expect(resp.Code).To(Equal(500))
+		})
+
+		It("translates known errors into Open Service Broker API errors", func() {
+			instanceID := uuid.NewV4().String()
+
+			resp := DoRequest(brokerAPI, NewRequest(
+				"PATCH",
+				"/v2/service_instances/"+instanceID,
+				nil,
+				credentials.Username,
+				credentials.Password,
+				url.Values{"accepts_incomplete": []string{"false"}},
+			))
+
+			Expect(resp.Code).To(Equal(422))
+
+		})
+	})
 })
