@@ -138,7 +138,7 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				oldServiceID := serviceID
 				code, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(200))
+				Expect(code).To(Equal(202))
 			})
 
 			By("checking that the cache parameter group has been updated", func() {

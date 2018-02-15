@@ -158,6 +158,52 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 	return err
 }
 
+func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasticache.ReplicationGroup) string {
+	tmpl := "%-20s : %s"
+	msgs := []string{"\n"}
+	if replicationGroup.Status != nil {
+		msgs = append(msgs, fmt.Sprintf(tmpl, "status", *replicationGroup.Status))
+	} else {
+		msgs = append(msgs, fmt.Sprintf(tmpl, "status", "unknown"))
+	}
+	if replicationGroup.ReplicationGroupId != nil {
+		msgs = append(msgs, fmt.Sprintf(tmpl, "cluster id", *replicationGroup.ReplicationGroupId))
+	}
+
+	if len(replicationGroup.MemberClusters) > 0 && replicationGroup.MemberClusters[0] != nil {
+		cacheClusterId := replicationGroup.MemberClusters[0]
+		if cacheCluster, err := p.describeCacheCluster(ctx, *cacheClusterId); err == nil {
+
+			if cacheCluster.EngineVersion != nil {
+				msgs = append(msgs, fmt.Sprintf(tmpl, "engine version", *cacheCluster.EngineVersion))
+			}
+
+			if replicationGroup.ReplicationGroupId != nil {
+				if params, err := p.describeCacheParameters(ctx, *replicationGroup.ReplicationGroupId); err == nil {
+					for _, param := range params {
+						if param.ParameterName == nil {
+							continue
+						}
+						if *param.ParameterName == "maxmemory-policy" && param.ParameterValue != nil {
+							msgs = append(msgs, fmt.Sprintf(tmpl, "maxmemory policy", *param.ParameterValue))
+						}
+					}
+				}
+			}
+
+			if cacheCluster.PreferredMaintenanceWindow != nil {
+				msgs = append(msgs, fmt.Sprintf(tmpl, "maintenance window", *cacheCluster.PreferredMaintenanceWindow))
+			}
+		}
+	}
+
+	if replicationGroup.SnapshotWindow != nil {
+		msgs = append(msgs, fmt.Sprintf(tmpl, "daily backup window", *replicationGroup.SnapshotWindow))
+	}
+
+	return strings.Join(msgs, "\n           ")
+}
+
 // GetState returns with the state of an existing cluster
 // If the cluster doesn't exist we return with the providers.NonExisting state
 func (p *RedisProvider) GetState(ctx context.Context, instanceID string) (providers.ServiceState, string, error) {
@@ -177,7 +223,7 @@ func (p *RedisProvider) GetState(ctx context.Context, instanceID string) (provid
 		return providers.ServiceState(""), "", fmt.Errorf("Invalid response from AWS: status is missing for %s", replicationGroupID)
 	}
 
-	message := fmt.Sprintf("ElastiCache state is %s for %s", *replicationGroup.Status, replicationGroupID)
+	message := p.getMessage(ctx, replicationGroup)
 
 	return providers.ServiceState(*replicationGroup.Status), message, nil
 }
@@ -196,6 +242,34 @@ func (p *RedisProvider) describeReplicationGroup(ctx context.Context, replicatio
 	}
 
 	return output.ReplicationGroups[0], nil
+}
+
+func (p *RedisProvider) describeCacheCluster(ctx context.Context, cacheClusterID string) (*elasticache.CacheCluster, error) {
+	output, err := p.aws.DescribeCacheClustersWithContext(ctx, &elasticache.DescribeCacheClustersInput{
+		CacheClusterId: aws.String(cacheClusterID),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(output.CacheClusters) == 0 {
+		return nil, fmt.Errorf("Invalid response from AWS: no CacheClusters found for %s", cacheClusterID)
+	}
+
+	return output.CacheClusters[0], nil
+}
+
+func (p *RedisProvider) describeCacheParameters(ctx context.Context, cacheParameterGroupName string) ([]*elasticache.Parameter, error) {
+	output, err := p.aws.DescribeCacheParametersWithContext(ctx, &elasticache.DescribeCacheParametersInput{
+		CacheParameterGroupName: aws.String(cacheParameterGroupName),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return output.Parameters, nil
 }
 
 // GenerateCredentials generates the client credentials for a Redis instance and an app

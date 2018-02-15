@@ -432,7 +432,7 @@ var _ = Describe("Broker", func() {
 			Expect(params).To(Equal(expectedParameters))
 
 			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
-				IsAsync:       false,
+				IsAsync:       true,
 				OperationData: broker.Operation{Action: broker.ActionUpdating}.String(),
 			}))
 		})

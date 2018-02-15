@@ -219,7 +219,7 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 		"accepts-incomplete": asyncAllowed,
 	})
 	return brokerapi.UpdateServiceSpec{
-		IsAsync:       false,
+		IsAsync:       true,
 		OperationData: Operation{Action: ActionUpdating}.String(),
 	}, nil
 }
