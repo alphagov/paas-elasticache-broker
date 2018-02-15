@@ -160,7 +160,7 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 
 func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasticache.ReplicationGroup) string {
 	tmpl := "%-20s : %s"
-	msgs := []string{"\n"}
+	msgs := []string{"---"}
 	if replicationGroup.Status != nil {
 		msgs = append(msgs, fmt.Sprintf(tmpl, "status", *replicationGroup.Status))
 	} else {
@@ -185,7 +185,7 @@ func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasti
 							continue
 						}
 						if *param.ParameterName == "maxmemory-policy" && param.ParameterValue != nil {
-							msgs = append(msgs, fmt.Sprintf(tmpl, "maxmemory policy", *param.ParameterValue))
+							msgs = append(msgs, fmt.Sprintf(tmpl, "maxmemory policy", strings.TrimSpace(*param.ParameterValue)))
 						}
 					}
 				}
