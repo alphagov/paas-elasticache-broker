@@ -3,7 +3,6 @@ package broker_test
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,35 +117,6 @@ var _ = Describe("Broker", func() {
 			))
 
 			Expect(resp.Code).To(Equal(202))
-		})
-
-		It("responds with an error if parameters contain an unknown key", func() {
-			instanceID := uuid.NewV4().String()
-			resp := DoRequest(brokerAPI, NewRequest(
-				"PUT",
-				"/v2/service_instances/"+instanceID,
-				strings.NewReader(`{
-					"service_id": "service1",
-					"plan_id": "plan1",
-					"organization_guid": "test-organization-id",
-					"space_guid": "space-id",
-					"parameters": {
-						"unknown_key": "foo"
-					}
-				}`),
-				credentials.Username,
-				credentials.Password,
-				url.Values{"accepts_incomplete": []string{"true"}},
-			))
-
-			Expect(resp.Code).To(Equal(500))
-			body, err := ioutil.ReadAll(resp.Body)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(string(body)).To(MatchJSON(`
-			{
-			  "description": "unknown parameter: unknown_key"
-			}
-			`))
 		})
 
 		It("responds with a 500 when an unknown provisioning error occurs", func() {
