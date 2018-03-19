@@ -54,7 +54,9 @@ func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicati
 	if params.Parameters == nil {
 		params.Parameters = map[string]string{}
 	}
-	params.Parameters["cluster-enabled"] = "yes"
+	if _, set := params.Parameters["cluster-enabled"]; !set {
+		params.Parameters["cluster-enabled"] = "no"
+	}
 
 	return p.modifyCacheParameterGroup(ctx, replicationGroupID, params.Parameters)
 }

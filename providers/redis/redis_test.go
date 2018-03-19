@@ -70,7 +70,7 @@ var _ = Describe("Provider", func() {
 			Expect(paramGroupInput.ParameterNameValues).To(ConsistOf([]*elasticache.ParameterNameValue{
 				{
 					ParameterName:  aws.String("cluster-enabled"),
-					ParameterValue: aws.String("yes"),
+					ParameterValue: aws.String("no"),
 				},
 				{
 					ParameterName:  aws.String("key1"),
@@ -80,6 +80,25 @@ var _ = Describe("Provider", func() {
 					ParameterName:  aws.String("key2"),
 					ParameterValue: aws.String("value2"),
 				},
+			}))
+		})
+
+		It("creates a cache parameter group with cluster mode enabled", func() {
+			instanceID := "foobar"
+
+			ctx := context.Background()
+
+			provider.Provision(ctx, instanceID, providers.ProvisionParameters{
+				Parameters: map[string]string{
+					"other-key":       "value",
+					"cluster-enabled": "yes",
+				},
+			})
+
+			_, paramGroupInput, _ := mockElasticache.ModifyCacheParameterGroupWithContextArgsForCall(0)
+			Expect(paramGroupInput.ParameterNameValues).To(ContainElement(&elasticache.ParameterNameValue{
+				ParameterName:  aws.String("cluster-enabled"),
+				ParameterValue: aws.String("yes"),
 			}))
 		})
 

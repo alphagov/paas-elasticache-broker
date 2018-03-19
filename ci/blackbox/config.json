@@ -34,6 +34,7 @@
 			"shard_count": 1,
 			"snapshot_retention_limit": 1,
 			"parameters": {
+				"cluster-enabled": "yes",
 				"maxmemory-policy": "volatile-lru",
 				"reserved-memory": "0"
 			}
