@@ -376,6 +376,10 @@ var _ = Describe("Provider", func() {
 						ParameterName:  aws.String("some-other-param"),
 						ParameterValue: aws.String("some-other-value"),
 					},
+					{
+						ParameterName:  aws.String("cluster-enabled"),
+						ParameterValue: aws.String("yes"),
+					},
 				},
 			}, nil)
 
@@ -392,6 +396,7 @@ var _ = Describe("Provider", func() {
 			Expect(stateMessage).To(ContainSubstring("maxmemory policy     : test-ttl"))
 			Expect(stateMessage).To(ContainSubstring("daily backup window  : 05:01-09:01"))
 			Expect(stateMessage).To(ContainSubstring("maintenance window   : sun:23:01-mon:01:31"))
+			Expect(stateMessage).To(ContainSubstring("cluster enabled      : yes"))
 
 		})
 

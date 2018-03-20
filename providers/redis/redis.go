@@ -192,6 +192,9 @@ func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasti
 						if *param.ParameterName == "maxmemory-policy" && param.ParameterValue != nil {
 							msgs = append(msgs, fmt.Sprintf(tmpl, "maxmemory policy", strings.TrimSpace(*param.ParameterValue)))
 						}
+						if *param.ParameterName == "cluster-enabled" && param.ParameterValue != nil {
+							msgs = append(msgs, fmt.Sprintf(tmpl, "cluster enabled", strings.TrimSpace(*param.ParameterValue)))
+						}
 					}
 				}
 			}
