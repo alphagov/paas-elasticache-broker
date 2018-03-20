@@ -129,9 +129,12 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		ReplicationGroupId:          aws.String(replicationGroupID),
 		NumNodeGroups:               aws.Int64(params.ShardCount),
 		ReplicasPerNodeGroup:        aws.Int64(params.ReplicasPerNodeGroup),
-		SnapshotRetentionLimit:      aws.Int64(params.SnapshotRetentionLimit),
-		SnapshotWindow:              aws.String("02:00-05:00"),
 		SnapshotName:                params.RestoreFromSnapshot,
+	}
+
+	if params.SnapshotRetentionLimit > 0 {
+		input.SetSnapshotRetentionLimit(params.SnapshotRetentionLimit)
+		input.SetSnapshotWindow("02:00-05:00")
 	}
 
 	for tagName, tagValue := range params.Tags {

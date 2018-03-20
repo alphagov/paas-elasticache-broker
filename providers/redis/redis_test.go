@@ -170,6 +170,34 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
+		It("creates a replication group without backup or failover", func() {
+			replicationGroupID := "cf-qwkec4pxhft6q"
+			ctx := context.Background()
+			instanceID := "foobar"
+			params := providers.ProvisionParameters{
+				InstanceType:               "test instance type",
+				CacheParameterGroupName:    replicationGroupID,
+				SecurityGroupIds:           []string{"test sg1"},
+				CacheSubnetGroupName:       "test subnet group",
+				PreferredMaintenanceWindow: "test maintenance window",
+				ReplicasPerNodeGroup:       0,
+				ShardCount:                 1,
+				SnapshotRetentionLimit:     0,
+				AutomaticFailoverEnabled:   false,
+				Description:                "test desc",
+				Parameters:                 map[string]string{},
+				Tags:                       map[string]string{},
+			}
+			provisionErr := provider.Provision(ctx, instanceID, params)
+			Expect(provisionErr).NotTo(HaveOccurred())
+
+			passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(passedInput.SnapshotRetentionLimit).To(BeNil())
+			Expect(passedInput.SnapshotWindow).To(BeNil())
+			Expect(*passedInput.AutomaticFailoverEnabled).To(BeFalse())
+		})
+
 		It("sets the tags properly", func() {
 			params := providers.ProvisionParameters{
 				Tags: map[string]string{"tag1": "tag value1", "tag2": "tag value2"},
