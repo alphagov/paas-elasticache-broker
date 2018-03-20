@@ -29,6 +29,7 @@ type ProvisionParameters struct {
 	ShardCount                 int64
 	SnapshotRetentionLimit     int64
 	RestoreFromSnapshot        *string
+	AutomaticFailoverEnabled   bool
 	Description                string
 	Parameters                 map[string]string
 	Tags                       map[string]string

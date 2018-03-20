@@ -117,7 +117,7 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		AtRestEncryptionEnabled:     aws.Bool(true),
 		TransitEncryptionEnabled:    aws.Bool(true),
 		AuthToken:                   aws.String(GenerateAuthToken(p.authTokenSeed, instanceID)),
-		AutomaticFailoverEnabled:    aws.Bool(true),
+		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
 		CacheNodeType:               aws.String(params.InstanceType),
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
 		SecurityGroupIds:            aws.StringSlice(params.SecurityGroupIds),

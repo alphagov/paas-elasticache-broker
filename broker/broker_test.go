@@ -49,6 +49,7 @@ var _ = Describe("Broker", func() {
 						"maxmemory-policy": "volatile-lru",
 						"reserved-memory":  "0",
 					},
+					AutomaticFailoverEnabled: true,
 				},
 			},
 		}
@@ -132,6 +133,7 @@ var _ = Describe("Broker", func() {
 				ReplicasPerNodeGroup:       0,
 				ShardCount:                 1,
 				SnapshotRetentionLimit:     0,
+				AutomaticFailoverEnabled:   validConfig.PlanConfigs["plan1"].AutomaticFailoverEnabled,
 				Description:                "Cloud Foundry service",
 				Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
 				Tags: map[string]string{
@@ -322,6 +324,7 @@ var _ = Describe("Broker", func() {
 					ShardCount:                 1,
 					SnapshotRetentionLimit:     0,
 					RestoreFromSnapshot:        &expectedRestoreFromSnapshotName,
+					AutomaticFailoverEnabled:   true,
 					Description:                "Cloud Foundry service",
 					Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
 					Tags: map[string]string{
