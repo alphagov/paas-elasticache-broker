@@ -339,65 +339,92 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
-		It("returns a message with details for useful configuration values", func() {
-			replicationGroupID := "cf-qwkec4pxhft6q"
-			cacheClusterId := replicationGroupID + "-001-001"
+		Describe("GetState", func() {
 
-			mockElasticache.DescribeReplicationGroupsWithContextReturns(&elasticache.DescribeReplicationGroupsOutput{
-				ReplicationGroups: []*elasticache.ReplicationGroup{
-					{
-						ReplicationGroupId: aws.String(replicationGroupID),
-						Status:             aws.String("OK"),
-						MemberClusters: []*string{
-							aws.String(cacheClusterId),
+			var (
+				snapshotWindow     = aws.String("05:01-09:01")
+				maintenanceWindow  = aws.String("sun:23:01-mon:01:31")
+				replicationGroupID = "cf-qwkec4pxhft6q"
+				cacheClusterId     = replicationGroupID + "-001-001"
+				instanceID         = "foobar"
+			)
+
+			JustBeforeEach(func() {
+				mockElasticache.DescribeReplicationGroupsWithContextReturns(&elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							ReplicationGroupId: aws.String(replicationGroupID),
+							Status:             aws.String("OK"),
+							MemberClusters: []*string{
+								aws.String(cacheClusterId),
+							},
+							SnapshotWindow: snapshotWindow,
 						},
-						SnapshotWindow: aws.String("05:01-09:01"),
 					},
-				},
-			}, nil)
+				}, nil)
 
-			mockElasticache.DescribeCacheClustersWithContextReturns(&elasticache.DescribeCacheClustersOutput{
-				CacheClusters: []*elasticache.CacheCluster{
-					{
-						CacheClusterId:             aws.String(cacheClusterId),
-						PreferredMaintenanceWindow: aws.String("sun:23:01-mon:01:31"),
-						EngineVersion:              aws.String("9.9.9"),
+				mockElasticache.DescribeCacheClustersWithContextReturns(&elasticache.DescribeCacheClustersOutput{
+					CacheClusters: []*elasticache.CacheCluster{
+						{
+							CacheClusterId:             aws.String(cacheClusterId),
+							PreferredMaintenanceWindow: maintenanceWindow,
+							EngineVersion:              aws.String("9.9.9"),
+						},
 					},
-				},
-			}, nil)
+				}, nil)
 
-			mockElasticache.DescribeCacheParametersWithContextReturns(&elasticache.DescribeCacheParametersOutput{
-				Parameters: []*elasticache.Parameter{
-					{
-						ParameterName:  aws.String("maxmemory-policy"),
-						ParameterValue: aws.String("test-ttl"),
+				mockElasticache.DescribeCacheParametersWithContextReturns(&elasticache.DescribeCacheParametersOutput{
+					Parameters: []*elasticache.Parameter{
+						{
+							ParameterName:  aws.String("maxmemory-policy"),
+							ParameterValue: aws.String("test-ttl"),
+						},
+						{
+							ParameterName:  aws.String("some-other-param"),
+							ParameterValue: aws.String("some-other-value"),
+						},
+						{
+							ParameterName:  aws.String("cluster-enabled"),
+							ParameterValue: aws.String("yes"),
+						},
 					},
-					{
-						ParameterName:  aws.String("some-other-param"),
-						ParameterValue: aws.String("some-other-value"),
-					},
-					{
-						ParameterName:  aws.String("cluster-enabled"),
-						ParameterValue: aws.String("yes"),
-					},
-				},
-			}, nil)
+				}, nil)
+			})
 
-			instanceID := "foobar"
-			ctx := context.Background()
+			It("returns a message with details for useful configuration values", func() {
+				_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+				Expect(stateErr).ToNot(HaveOccurred())
 
-			_, stateMessage, stateErr := provider.GetState(ctx, instanceID)
-			Expect(stateErr).ToNot(HaveOccurred())
+				Expect(mockElasticache.DescribeCacheParametersWithContextCallCount()).To(Equal(1))
+				Expect(stateMessage).To(ContainSubstring("status               : OK"))
+				Expect(stateMessage).To(ContainSubstring("engine version       : 9.9.9"))
+				Expect(stateMessage).To(ContainSubstring("maxmemory policy     : test-ttl"))
+				Expect(stateMessage).To(ContainSubstring("daily backup window  : 05:01-09:01"))
+				Expect(stateMessage).To(ContainSubstring("maintenance window   : sun:23:01-mon:01:31"))
+				Expect(stateMessage).To(ContainSubstring("cluster enabled      : yes"))
+			})
 
-			Expect(mockElasticache.DescribeCacheParametersWithContextCallCount()).To(Equal(1))
+			Context("when it doesn't have automated backup", func() {
+				BeforeEach(func() {
+					snapshotWindow = nil
+				})
+				It("won't return the daily backup window in the message", func() {
+					_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+					Expect(stateErr).ToNot(HaveOccurred())
+					Expect(stateMessage).ToNot(ContainSubstring("daily backup window"))
+				})
+			})
 
-			Expect(stateMessage).To(ContainSubstring("status               : OK"))
-			Expect(stateMessage).To(ContainSubstring("engine version       : 9.9.9"))
-			Expect(stateMessage).To(ContainSubstring("maxmemory policy     : test-ttl"))
-			Expect(stateMessage).To(ContainSubstring("daily backup window  : 05:01-09:01"))
-			Expect(stateMessage).To(ContainSubstring("maintenance window   : sun:23:01-mon:01:31"))
-			Expect(stateMessage).To(ContainSubstring("cluster enabled      : yes"))
-
+			Context("when it doesn't have a preferred maintenance window", func() {
+				BeforeEach(func() {
+					maintenanceWindow = nil
+				})
+				It("won't return the field", func() {
+					_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+					Expect(stateErr).ToNot(HaveOccurred())
+					Expect(stateMessage).ToNot(ContainSubstring("maintenance window"))
+				})
+			})
 		})
 
 		It("handles errors from the AWS API", func() {
