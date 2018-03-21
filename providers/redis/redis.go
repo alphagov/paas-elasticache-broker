@@ -54,7 +54,9 @@ func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicati
 	if params.Parameters == nil {
 		params.Parameters = map[string]string{}
 	}
-	params.Parameters["cluster-enabled"] = "yes"
+	if _, set := params.Parameters["cluster-enabled"]; !set {
+		params.Parameters["cluster-enabled"] = "no"
+	}
 
 	return p.modifyCacheParameterGroup(ctx, replicationGroupID, params.Parameters)
 }
@@ -115,7 +117,7 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		AtRestEncryptionEnabled:     aws.Bool(true),
 		TransitEncryptionEnabled:    aws.Bool(true),
 		AuthToken:                   aws.String(GenerateAuthToken(p.authTokenSeed, instanceID)),
-		AutomaticFailoverEnabled:    aws.Bool(true),
+		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
 		CacheNodeType:               aws.String(params.InstanceType),
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
 		SecurityGroupIds:            aws.StringSlice(params.SecurityGroupIds),
@@ -127,9 +129,12 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		ReplicationGroupId:          aws.String(replicationGroupID),
 		NumNodeGroups:               aws.Int64(params.ShardCount),
 		ReplicasPerNodeGroup:        aws.Int64(params.ReplicasPerNodeGroup),
-		SnapshotRetentionLimit:      aws.Int64(params.SnapshotRetentionLimit),
-		SnapshotWindow:              aws.String("02:00-05:00"),
 		SnapshotName:                params.RestoreFromSnapshot,
+	}
+
+	if params.SnapshotRetentionLimit > 0 {
+		input.SetSnapshotRetentionLimit(params.SnapshotRetentionLimit)
+		input.SetSnapshotWindow("02:00-05:00")
 	}
 
 	for tagName, tagValue := range params.Tags {
@@ -186,6 +191,9 @@ func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasti
 						}
 						if *param.ParameterName == "maxmemory-policy" && param.ParameterValue != nil {
 							msgs = append(msgs, fmt.Sprintf(tmpl, "maxmemory policy", strings.TrimSpace(*param.ParameterValue)))
+						}
+						if *param.ParameterName == "cluster-enabled" && param.ParameterValue != nil {
+							msgs = append(msgs, fmt.Sprintf(tmpl, "cluster enabled", strings.TrimSpace(*param.ParameterValue)))
 						}
 					}
 				}

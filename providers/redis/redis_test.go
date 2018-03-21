@@ -70,7 +70,7 @@ var _ = Describe("Provider", func() {
 			Expect(paramGroupInput.ParameterNameValues).To(ConsistOf([]*elasticache.ParameterNameValue{
 				{
 					ParameterName:  aws.String("cluster-enabled"),
-					ParameterValue: aws.String("yes"),
+					ParameterValue: aws.String("no"),
 				},
 				{
 					ParameterName:  aws.String("key1"),
@@ -80,6 +80,25 @@ var _ = Describe("Provider", func() {
 					ParameterName:  aws.String("key2"),
 					ParameterValue: aws.String("value2"),
 				},
+			}))
+		})
+
+		It("creates a cache parameter group with cluster mode enabled", func() {
+			instanceID := "foobar"
+
+			ctx := context.Background()
+
+			provider.Provision(ctx, instanceID, providers.ProvisionParameters{
+				Parameters: map[string]string{
+					"other-key":       "value",
+					"cluster-enabled": "yes",
+				},
+			})
+
+			_, paramGroupInput, _ := mockElasticache.ModifyCacheParameterGroupWithContextArgsForCall(0)
+			Expect(paramGroupInput.ParameterNameValues).To(ContainElement(&elasticache.ParameterNameValue{
+				ParameterName:  aws.String("cluster-enabled"),
+				ParameterValue: aws.String("yes"),
 			}))
 		})
 
@@ -118,6 +137,7 @@ var _ = Describe("Provider", func() {
 				ReplicasPerNodeGroup:       0,
 				ShardCount:                 1,
 				SnapshotRetentionLimit:     7,
+				AutomaticFailoverEnabled:   true,
 				Description:                "test desc",
 				Parameters:                 map[string]string{},
 				Tags:                       map[string]string{},
@@ -148,6 +168,34 @@ var _ = Describe("Provider", func() {
 				SnapshotRetentionLimit:      aws.Int64(7),
 				SnapshotWindow:              aws.String("02:00-05:00"),
 			}))
+		})
+
+		It("creates a replication group without backup or failover", func() {
+			replicationGroupID := "cf-qwkec4pxhft6q"
+			ctx := context.Background()
+			instanceID := "foobar"
+			params := providers.ProvisionParameters{
+				InstanceType:               "test instance type",
+				CacheParameterGroupName:    replicationGroupID,
+				SecurityGroupIds:           []string{"test sg1"},
+				CacheSubnetGroupName:       "test subnet group",
+				PreferredMaintenanceWindow: "test maintenance window",
+				ReplicasPerNodeGroup:       0,
+				ShardCount:                 1,
+				SnapshotRetentionLimit:     0,
+				AutomaticFailoverEnabled:   false,
+				Description:                "test desc",
+				Parameters:                 map[string]string{},
+				Tags:                       map[string]string{},
+			}
+			provisionErr := provider.Provision(ctx, instanceID, params)
+			Expect(provisionErr).NotTo(HaveOccurred())
+
+			passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(passedInput.SnapshotRetentionLimit).To(BeNil())
+			Expect(passedInput.SnapshotWindow).To(BeNil())
+			Expect(*passedInput.AutomaticFailoverEnabled).To(BeFalse())
 		})
 
 		It("sets the tags properly", func() {
@@ -187,6 +235,7 @@ var _ = Describe("Provider", func() {
 					ShardCount:                 1,
 					SnapshotRetentionLimit:     7,
 					RestoreFromSnapshot:        &snapshotToRestore,
+					AutomaticFailoverEnabled:   true,
 					Description:                "test desc",
 					Parameters:                 map[string]string{},
 					Tags:                       map[string]string{},
@@ -290,60 +339,92 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
-		It("returns a message with details for useful configuration values", func() {
-			replicationGroupID := "cf-qwkec4pxhft6q"
-			cacheClusterId := replicationGroupID + "-001-001"
+		Describe("GetState", func() {
 
-			mockElasticache.DescribeReplicationGroupsWithContextReturns(&elasticache.DescribeReplicationGroupsOutput{
-				ReplicationGroups: []*elasticache.ReplicationGroup{
-					{
-						ReplicationGroupId: aws.String(replicationGroupID),
-						Status:             aws.String("OK"),
-						MemberClusters: []*string{
-							aws.String(cacheClusterId),
+			var (
+				snapshotWindow     = aws.String("05:01-09:01")
+				maintenanceWindow  = aws.String("sun:23:01-mon:01:31")
+				replicationGroupID = "cf-qwkec4pxhft6q"
+				cacheClusterId     = replicationGroupID + "-001-001"
+				instanceID         = "foobar"
+			)
+
+			JustBeforeEach(func() {
+				mockElasticache.DescribeReplicationGroupsWithContextReturns(&elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							ReplicationGroupId: aws.String(replicationGroupID),
+							Status:             aws.String("OK"),
+							MemberClusters: []*string{
+								aws.String(cacheClusterId),
+							},
+							SnapshotWindow: snapshotWindow,
 						},
-						SnapshotWindow: aws.String("05:01-09:01"),
 					},
-				},
-			}, nil)
+				}, nil)
 
-			mockElasticache.DescribeCacheClustersWithContextReturns(&elasticache.DescribeCacheClustersOutput{
-				CacheClusters: []*elasticache.CacheCluster{
-					{
-						CacheClusterId:             aws.String(cacheClusterId),
-						PreferredMaintenanceWindow: aws.String("sun:23:01-mon:01:31"),
-						EngineVersion:              aws.String("9.9.9"),
+				mockElasticache.DescribeCacheClustersWithContextReturns(&elasticache.DescribeCacheClustersOutput{
+					CacheClusters: []*elasticache.CacheCluster{
+						{
+							CacheClusterId:             aws.String(cacheClusterId),
+							PreferredMaintenanceWindow: maintenanceWindow,
+							EngineVersion:              aws.String("9.9.9"),
+						},
 					},
-				},
-			}, nil)
+				}, nil)
 
-			mockElasticache.DescribeCacheParametersWithContextReturns(&elasticache.DescribeCacheParametersOutput{
-				Parameters: []*elasticache.Parameter{
-					{
-						ParameterName:  aws.String("maxmemory-policy"),
-						ParameterValue: aws.String("test-ttl"),
+				mockElasticache.DescribeCacheParametersWithContextReturns(&elasticache.DescribeCacheParametersOutput{
+					Parameters: []*elasticache.Parameter{
+						{
+							ParameterName:  aws.String("maxmemory-policy"),
+							ParameterValue: aws.String("test-ttl"),
+						},
+						{
+							ParameterName:  aws.String("some-other-param"),
+							ParameterValue: aws.String("some-other-value"),
+						},
+						{
+							ParameterName:  aws.String("cluster-enabled"),
+							ParameterValue: aws.String("yes"),
+						},
 					},
-					{
-						ParameterName:  aws.String("some-other-param"),
-						ParameterValue: aws.String("some-other-value"),
-					},
-				},
-			}, nil)
+				}, nil)
+			})
 
-			instanceID := "foobar"
-			ctx := context.Background()
+			It("returns a message with details for useful configuration values", func() {
+				_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+				Expect(stateErr).ToNot(HaveOccurred())
 
-			_, stateMessage, stateErr := provider.GetState(ctx, instanceID)
-			Expect(stateErr).ToNot(HaveOccurred())
+				Expect(mockElasticache.DescribeCacheParametersWithContextCallCount()).To(Equal(1))
+				Expect(stateMessage).To(ContainSubstring("status               : OK"))
+				Expect(stateMessage).To(ContainSubstring("engine version       : 9.9.9"))
+				Expect(stateMessage).To(ContainSubstring("maxmemory policy     : test-ttl"))
+				Expect(stateMessage).To(ContainSubstring("daily backup window  : 05:01-09:01"))
+				Expect(stateMessage).To(ContainSubstring("maintenance window   : sun:23:01-mon:01:31"))
+				Expect(stateMessage).To(ContainSubstring("cluster enabled      : yes"))
+			})
 
-			Expect(mockElasticache.DescribeCacheParametersWithContextCallCount()).To(Equal(1))
+			Context("when it doesn't have automated backup", func() {
+				BeforeEach(func() {
+					snapshotWindow = nil
+				})
+				It("won't return the daily backup window in the message", func() {
+					_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+					Expect(stateErr).ToNot(HaveOccurred())
+					Expect(stateMessage).ToNot(ContainSubstring("daily backup window"))
+				})
+			})
 
-			Expect(stateMessage).To(ContainSubstring("status               : OK"))
-			Expect(stateMessage).To(ContainSubstring("engine version       : 9.9.9"))
-			Expect(stateMessage).To(ContainSubstring("maxmemory policy     : test-ttl"))
-			Expect(stateMessage).To(ContainSubstring("daily backup window  : 05:01-09:01"))
-			Expect(stateMessage).To(ContainSubstring("maintenance window   : sun:23:01-mon:01:31"))
-
+			Context("when it doesn't have a preferred maintenance window", func() {
+				BeforeEach(func() {
+					maintenanceWindow = nil
+				})
+				It("won't return the field", func() {
+					_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+					Expect(stateErr).ToNot(HaveOccurred())
+					Expect(stateMessage).ToNot(ContainSubstring("maintenance window"))
+				})
+			})
 		})
 
 		It("handles errors from the AWS API", func() {

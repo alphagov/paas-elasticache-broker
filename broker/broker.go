@@ -137,6 +137,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		ShardCount:                 planConfig.ShardCount,
 		SnapshotRetentionLimit:     planConfig.SnapshotRetentionLimit,
 		RestoreFromSnapshot:        restoreFromSnapshotName,
+		AutomaticFailoverEnabled:   planConfig.AutomaticFailoverEnabled,
 		Description:                "Cloud Foundry service",
 		Parameters:                 params,
 		Tags: map[string]string{
