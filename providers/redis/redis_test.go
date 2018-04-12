@@ -317,6 +317,28 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
+		It("deletes the auth token from the secrets manager", func() {
+			instanceID := "foobar"
+			ctx := context.Background()
+			err := provider.Deprovision(ctx, instanceID, providers.DeprovisionParameters{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(mockSecretsManager.DeleteSecretCallCount()).To(Equal(1))
+			input := mockSecretsManager.DeleteSecretArgsForCall(0)
+			Expect(input.SecretId).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
+			Expect(*input.RecoveryWindowInDays).To(BeNumerically(">", 0))
+		})
+
+		It("returns an error if we can't save the auth token in the secrets manager", func() {
+			smErr := errors.New("error in secrets manager")
+			mockSecretsManager.DeleteSecretReturnsOnCall(0, nil, smErr)
+
+			instanceID := "foobar"
+			ctx := context.Background()
+			err := provider.Deprovision(ctx, instanceID, providers.DeprovisionParameters{})
+			Expect(err).To(MatchError(smErr))
+		})
+
 		It("sets a parameter for creating a final snapshot if final snapshot name is set", func() {
 			params := providers.DeprovisionParameters{
 				FinalSnapshotIdentifier: "test snapshot",

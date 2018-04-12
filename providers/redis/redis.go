@@ -180,7 +180,16 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 	}
 
 	_, err := p.elastiCache.DeleteReplicationGroupWithContext(ctx, input)
-	return err
+	if err != nil {
+		return err
+	}
+
+	err = p.DeleteAuthTokenSecret(instanceID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasticache.ReplicationGroup) string {
@@ -399,6 +408,15 @@ func (p *RedisProvider) CreateAuthTokenSecret(instanceID string, authToken strin
 		Name:         aws.String(name),
 		SecretString: aws.String(authToken),
 		KmsKeyId:     aws.String(p.kmsKeyID),
+	})
+	return err
+}
+
+func (p *RedisProvider) DeleteAuthTokenSecret(instanceID string) error {
+	name := GetAuthTokenPath(instanceID)
+	_, err := p.secretsManager.DeleteSecret(&secretsmanager.DeleteSecretInput{
+		SecretId:             aws.String(name),
+		RecoveryWindowInDays: aws.Int64(3),
 	})
 	return err
 }
