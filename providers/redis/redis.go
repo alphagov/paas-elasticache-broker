@@ -127,8 +127,7 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 
 	cacheParameterGroupName := replicationGroupID
 
-	// TODO: generate secure random auth token
-	authToken := GenerateAuthToken(p.authTokenSeed, instanceID)
+	authToken := GenerateAuthToken()
 	err = p.CreateAuthTokenSecret(instanceID, authToken)
 	if err != nil {
 		return fmt.Errorf("failed to create auth token: %s", err.Error())
@@ -356,7 +355,7 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 
 		// For existing instance we save the old auth token in the secrets manager
 		// TODO: replace this code with returning an error if all auth tokens were saved in the store
-		authToken = GenerateAuthToken(p.authTokenSeed, instanceID)
+		authToken = DeprecatedGenerateAuthToken(p.authTokenSeed, instanceID)
 		err = p.CreateAuthTokenSecret(instanceID, authToken)
 		if err != nil {
 			return nil, err
@@ -467,10 +466,16 @@ func GenerateReplicationGroupName(instanceID string) string {
 	return strings.ToLower("cf-" + encoder.EncodeToString(out))
 }
 
-// GenerateAuthToken generates a password based on the given seed and the service instance id
-func GenerateAuthToken(seed string, instanceID string) string {
+// Generates a password based on the given seed and the service instance id
+// FIXME: Remove once existing instances have had their auth tokens migrated to AWS Secrets Manager
+func DeprecatedGenerateAuthToken(seed string, instanceID string) string {
 	sha := sha256.Sum256([]byte(seed + instanceID))
 	return base64.URLEncoding.EncodeToString(sha[:])
+}
+
+// GenerateAuthToken generates an alphanumeric cryptographically-secure password
+func GenerateAuthToken() string {
+	return RandomAlphaNum(PasswordLength)
 }
 
 func GetAuthTokenPath(instanceID string) string {
