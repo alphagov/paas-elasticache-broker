@@ -21,7 +21,7 @@ var _ providers.Provider = &RedisProvider{}
 
 // RedisProvider is the Redis broker provider
 type RedisProvider struct {
-	aws           providers.ElastiCache
+	elastiCache   providers.ElastiCache
 	awsAccountID  string
 	awsPartition  string
 	awsRegion     string
@@ -30,9 +30,9 @@ type RedisProvider struct {
 }
 
 // NewProvider creates a new Redis provider
-func NewProvider(elasticache providers.ElastiCache, awsAccountID, awsPartition, awsRegion string, logger lager.Logger, authTokenSeed string) *RedisProvider {
+func NewProvider(elastiCache providers.ElastiCache, awsAccountID, awsPartition, awsRegion string, logger lager.Logger, authTokenSeed string) *RedisProvider {
 	return &RedisProvider{
-		aws:           elasticache,
+		elastiCache:   elastiCache,
 		awsAccountID:  awsAccountID,
 		awsPartition:  awsPartition,
 		awsRegion:     awsRegion,
@@ -42,7 +42,7 @@ func NewProvider(elasticache providers.ElastiCache, awsAccountID, awsPartition, 
 }
 
 func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicationGroupID string, params providers.ProvisionParameters) error {
-	_, err := p.aws.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
+	_, err := p.elastiCache.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
 		CacheParameterGroupFamily: aws.String("redis3.2"),
 		CacheParameterGroupName:   aws.String(replicationGroupID),
 		Description:               aws.String("Created by Cloud Foundry"),
@@ -74,7 +74,7 @@ func (p *RedisProvider) modifyCacheParameterGroup(ctx context.Context, replicati
 		})
 	}
 
-	_, err := p.aws.ModifyCacheParameterGroupWithContext(ctx, &elasticache.ModifyCacheParameterGroupInput{
+	_, err := p.elastiCache.ModifyCacheParameterGroupWithContext(ctx, &elasticache.ModifyCacheParameterGroupInput{
 		ParameterNameValues:     pgParams,
 		CacheParameterGroupName: aws.String(replicationGroupID),
 	})
@@ -83,7 +83,7 @@ func (p *RedisProvider) modifyCacheParameterGroup(ctx context.Context, replicati
 
 func (p *RedisProvider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
-	_, err := p.aws.DeleteCacheParameterGroupWithContext(ctx, &elasticache.DeleteCacheParameterGroupInput{
+	_, err := p.elastiCache.DeleteCacheParameterGroupWithContext(ctx, &elasticache.DeleteCacheParameterGroupInput{
 		CacheParameterGroupName: aws.String(replicationGroupID),
 	})
 	if err != nil {
@@ -144,7 +144,7 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		})
 	}
 
-	_, err = p.aws.CreateReplicationGroupWithContext(ctx, input)
+	_, err = p.elastiCache.CreateReplicationGroupWithContext(ctx, input)
 	return err
 }
 
@@ -159,7 +159,7 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 		input.SetFinalSnapshotIdentifier(params.FinalSnapshotIdentifier)
 	}
 
-	_, err := p.aws.DeleteReplicationGroupWithContext(ctx, input)
+	_, err := p.elastiCache.DeleteReplicationGroupWithContext(ctx, input)
 	return err
 }
 
@@ -237,7 +237,7 @@ func (p *RedisProvider) GetState(ctx context.Context, instanceID string) (provid
 }
 
 func (p *RedisProvider) describeReplicationGroup(ctx context.Context, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
-	output, err := p.aws.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
+	output, err := p.elastiCache.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
 		ReplicationGroupId: aws.String(replicationGroupID),
 	})
 
@@ -253,7 +253,7 @@ func (p *RedisProvider) describeReplicationGroup(ctx context.Context, replicatio
 }
 
 func (p *RedisProvider) describeCacheCluster(ctx context.Context, cacheClusterID string) (*elasticache.CacheCluster, error) {
-	output, err := p.aws.DescribeCacheClustersWithContext(ctx, &elasticache.DescribeCacheClustersInput{
+	output, err := p.elastiCache.DescribeCacheClustersWithContext(ctx, &elasticache.DescribeCacheClustersInput{
 		CacheClusterId: aws.String(cacheClusterID),
 	})
 
@@ -269,7 +269,7 @@ func (p *RedisProvider) describeCacheCluster(ctx context.Context, cacheClusterID
 }
 
 func (p *RedisProvider) describeCacheParameters(ctx context.Context, cacheParameterGroupName string) ([]*elasticache.Parameter, error) {
-	output, err := p.aws.DescribeCacheParametersWithContext(ctx, &elasticache.DescribeCacheParametersInput{
+	output, err := p.elastiCache.DescribeCacheParametersWithContext(ctx, &elasticache.DescribeCacheParametersInput{
 		CacheParameterGroupName: aws.String(cacheParameterGroupName),
 	})
 
@@ -339,7 +339,7 @@ func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([
 		ReplicationGroupId: aws.String(replicationGroupID),
 	}
 	snapshots := []*elasticache.Snapshot{}
-	err := p.aws.DescribeSnapshotsPagesWithContext(ctx, describeSnapshotsParams, func(page *elasticache.DescribeSnapshotsOutput, lastPage bool) bool {
+	err := p.elastiCache.DescribeSnapshotsPagesWithContext(ctx, describeSnapshotsParams, func(page *elasticache.DescribeSnapshotsOutput, lastPage bool) bool {
 		snapshots = append(snapshots, page.Snapshots...)
 		return true
 	})
@@ -354,7 +354,7 @@ func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([
 			snapshot.NodeSnapshots[0].SnapshotCreateTime == nil {
 			return nil, fmt.Errorf("Invalid response from AWS: Missing values for snapshot for elasticache cluster %s", instanceID)
 		}
-		tagList, err := p.aws.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
+		tagList, err := p.elastiCache.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
 			ResourceName: aws.String(p.snapshotARN(*snapshot.SnapshotName)),
 		})
 		if err != nil {
