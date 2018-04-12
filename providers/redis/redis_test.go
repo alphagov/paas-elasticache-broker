@@ -331,7 +331,7 @@ var _ = Describe("Provider", func() {
 			ctx, input, _ := mockSecretsManager.DeleteSecretWithContextArgsForCall(0)
 			Expect(ctx).To(Equal(ctx))
 			Expect(input.SecretId).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
-			Expect(*input.RecoveryWindowInDays).To(BeNumerically(">", 0))
+			Expect(*input.RecoveryWindowInDays).To(Equal(int64(30)))
 		})
 
 		It("returns an error if we can't save the auth token in the secrets manager", func() {

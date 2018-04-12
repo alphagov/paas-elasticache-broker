@@ -185,7 +185,7 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 		return err
 	}
 
-	err = p.DeleteAuthTokenSecret(ctx, instanceID)
+	err = p.DeleteAuthTokenSecret(ctx, instanceID, 30)
 	if err != nil {
 		return err
 	}
@@ -436,11 +436,11 @@ func (p *RedisProvider) CreateAuthTokenSecret(ctx context.Context, instanceID st
 	return err
 }
 
-func (p *RedisProvider) DeleteAuthTokenSecret(ctx context.Context, instanceID string) error {
+func (p *RedisProvider) DeleteAuthTokenSecret(ctx context.Context, instanceID string, recoveryWindowInDays int) error {
 	name := GetAuthTokenPath(instanceID)
 	_, err := p.secretsManager.DeleteSecretWithContext(ctx, &secretsmanager.DeleteSecretInput{
 		SecretId:             aws.String(name),
-		RecoveryWindowInDays: aws.Int64(3),
+		RecoveryWindowInDays: aws.Int64(int64(recoveryWindowInDays)),
 	})
 	return err
 }
