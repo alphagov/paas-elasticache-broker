@@ -128,7 +128,7 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 	cacheParameterGroupName := replicationGroupID
 
 	authToken := GenerateAuthToken()
-	err = p.CreateAuthTokenSecret(instanceID, authToken)
+	err = p.CreateAuthTokenSecret(ctx, instanceID, authToken)
 	if err != nil {
 		return fmt.Errorf("failed to create auth token: %s", err.Error())
 	}
@@ -185,7 +185,7 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 		return err
 	}
 
-	err = p.DeleteAuthTokenSecret(instanceID)
+	err = p.DeleteAuthTokenSecret(ctx, instanceID)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 		port = *replicationGroup.NodeGroups[0].PrimaryEndpoint.Port
 	}
 
-	authTokenSecret, err := p.secretsManager.GetSecretValue(&secretsmanager.GetSecretValueInput{
+	authTokenSecret, err := p.secretsManager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(GetAuthTokenPath(instanceID)),
 	})
 	var authToken string
@@ -356,7 +356,7 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 		// For existing instance we save the old auth token in the secrets manager
 		// TODO: replace this code with returning an error if all auth tokens were saved in the store
 		authToken = DeprecatedGenerateAuthToken(p.authTokenSeed, instanceID)
-		err = p.CreateAuthTokenSecret(instanceID, authToken)
+		err = p.CreateAuthTokenSecret(ctx, instanceID, authToken)
 		if err != nil {
 			return nil, err
 		}
@@ -426,9 +426,9 @@ func (p *RedisProvider) snapshotARN(snapshotID string) string {
 	return fmt.Sprintf("arn:%s:elasticache:%s:%s:snapshot:%s", p.awsPartition, p.awsRegion, p.awsAccountID, snapshotID)
 }
 
-func (p *RedisProvider) CreateAuthTokenSecret(instanceID string, authToken string) error {
+func (p *RedisProvider) CreateAuthTokenSecret(ctx context.Context, instanceID string, authToken string) error {
 	name := GetAuthTokenPath(instanceID)
-	_, err := p.secretsManager.CreateSecret(&secretsmanager.CreateSecretInput{
+	_, err := p.secretsManager.CreateSecretWithContext(ctx, &secretsmanager.CreateSecretInput{
 		Name:         aws.String(name),
 		SecretString: aws.String(authToken),
 		KmsKeyId:     aws.String(p.kmsKeyID),
@@ -436,9 +436,9 @@ func (p *RedisProvider) CreateAuthTokenSecret(instanceID string, authToken strin
 	return err
 }
 
-func (p *RedisProvider) DeleteAuthTokenSecret(instanceID string) error {
+func (p *RedisProvider) DeleteAuthTokenSecret(ctx context.Context, instanceID string) error {
 	name := GetAuthTokenPath(instanceID)
-	_, err := p.secretsManager.DeleteSecret(&secretsmanager.DeleteSecretInput{
+	_, err := p.secretsManager.DeleteSecretWithContext(ctx, &secretsmanager.DeleteSecretInput{
 		SecretId:             aws.String(name),
 		RecoveryWindowInDays: aws.Int64(3),
 	})

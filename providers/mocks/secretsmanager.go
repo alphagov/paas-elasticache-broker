@@ -5,46 +5,54 @@ import (
 	"sync"
 
 	"github.com/alphagov/paas-elasticache-broker/providers"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
 type FakeSecretsManager struct {
-	CreateSecretStub        func(input *secretsmanager.CreateSecretInput) (*secretsmanager.CreateSecretOutput, error)
-	createSecretMutex       sync.RWMutex
-	createSecretArgsForCall []struct {
+	CreateSecretWithContextStub        func(ctx aws.Context, input *secretsmanager.CreateSecretInput, opts ...request.Option) (*secretsmanager.CreateSecretOutput, error)
+	createSecretWithContextMutex       sync.RWMutex
+	createSecretWithContextArgsForCall []struct {
+		ctx   aws.Context
 		input *secretsmanager.CreateSecretInput
+		opts  []request.Option
 	}
-	createSecretReturns struct {
+	createSecretWithContextReturns struct {
 		result1 *secretsmanager.CreateSecretOutput
 		result2 error
 	}
-	createSecretReturnsOnCall map[int]struct {
+	createSecretWithContextReturnsOnCall map[int]struct {
 		result1 *secretsmanager.CreateSecretOutput
 		result2 error
 	}
-	GetSecretValueStub        func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error)
-	getSecretValueMutex       sync.RWMutex
-	getSecretValueArgsForCall []struct {
+	GetSecretValueWithContextStub        func(ctx aws.Context, input *secretsmanager.GetSecretValueInput, opts ...request.Option) (*secretsmanager.GetSecretValueOutput, error)
+	getSecretValueWithContextMutex       sync.RWMutex
+	getSecretValueWithContextArgsForCall []struct {
+		ctx   aws.Context
 		input *secretsmanager.GetSecretValueInput
+		opts  []request.Option
 	}
-	getSecretValueReturns struct {
+	getSecretValueWithContextReturns struct {
 		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}
-	getSecretValueReturnsOnCall map[int]struct {
+	getSecretValueWithContextReturnsOnCall map[int]struct {
 		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}
-	DeleteSecretStub        func(input *secretsmanager.DeleteSecretInput) (*secretsmanager.DeleteSecretOutput, error)
-	deleteSecretMutex       sync.RWMutex
-	deleteSecretArgsForCall []struct {
+	DeleteSecretWithContextStub        func(ctx aws.Context, input *secretsmanager.DeleteSecretInput, opts ...request.Option) (*secretsmanager.DeleteSecretOutput, error)
+	deleteSecretWithContextMutex       sync.RWMutex
+	deleteSecretWithContextArgsForCall []struct {
+		ctx   aws.Context
 		input *secretsmanager.DeleteSecretInput
+		opts  []request.Option
 	}
-	deleteSecretReturns struct {
+	deleteSecretWithContextReturns struct {
 		result1 *secretsmanager.DeleteSecretOutput
 		result2 error
 	}
-	deleteSecretReturnsOnCall map[int]struct {
+	deleteSecretWithContextReturnsOnCall map[int]struct {
 		result1 *secretsmanager.DeleteSecretOutput
 		result2 error
 	}
@@ -52,154 +60,160 @@ type FakeSecretsManager struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeSecretsManager) CreateSecret(input *secretsmanager.CreateSecretInput) (*secretsmanager.CreateSecretOutput, error) {
-	fake.createSecretMutex.Lock()
-	ret, specificReturn := fake.createSecretReturnsOnCall[len(fake.createSecretArgsForCall)]
-	fake.createSecretArgsForCall = append(fake.createSecretArgsForCall, struct {
+func (fake *FakeSecretsManager) CreateSecretWithContext(ctx aws.Context, input *secretsmanager.CreateSecretInput, opts ...request.Option) (*secretsmanager.CreateSecretOutput, error) {
+	fake.createSecretWithContextMutex.Lock()
+	ret, specificReturn := fake.createSecretWithContextReturnsOnCall[len(fake.createSecretWithContextArgsForCall)]
+	fake.createSecretWithContextArgsForCall = append(fake.createSecretWithContextArgsForCall, struct {
+		ctx   aws.Context
 		input *secretsmanager.CreateSecretInput
-	}{input})
-	fake.recordInvocation("CreateSecret", []interface{}{input})
-	fake.createSecretMutex.Unlock()
-	if fake.CreateSecretStub != nil {
-		return fake.CreateSecretStub(input)
+		opts  []request.Option
+	}{ctx, input, opts})
+	fake.recordInvocation("CreateSecretWithContext", []interface{}{ctx, input, opts})
+	fake.createSecretWithContextMutex.Unlock()
+	if fake.CreateSecretWithContextStub != nil {
+		return fake.CreateSecretWithContextStub(ctx, input, opts...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.createSecretReturns.result1, fake.createSecretReturns.result2
+	return fake.createSecretWithContextReturns.result1, fake.createSecretWithContextReturns.result2
 }
 
-func (fake *FakeSecretsManager) CreateSecretCallCount() int {
-	fake.createSecretMutex.RLock()
-	defer fake.createSecretMutex.RUnlock()
-	return len(fake.createSecretArgsForCall)
+func (fake *FakeSecretsManager) CreateSecretWithContextCallCount() int {
+	fake.createSecretWithContextMutex.RLock()
+	defer fake.createSecretWithContextMutex.RUnlock()
+	return len(fake.createSecretWithContextArgsForCall)
 }
 
-func (fake *FakeSecretsManager) CreateSecretArgsForCall(i int) *secretsmanager.CreateSecretInput {
-	fake.createSecretMutex.RLock()
-	defer fake.createSecretMutex.RUnlock()
-	return fake.createSecretArgsForCall[i].input
+func (fake *FakeSecretsManager) CreateSecretWithContextArgsForCall(i int) (aws.Context, *secretsmanager.CreateSecretInput, []request.Option) {
+	fake.createSecretWithContextMutex.RLock()
+	defer fake.createSecretWithContextMutex.RUnlock()
+	return fake.createSecretWithContextArgsForCall[i].ctx, fake.createSecretWithContextArgsForCall[i].input, fake.createSecretWithContextArgsForCall[i].opts
 }
 
-func (fake *FakeSecretsManager) CreateSecretReturns(result1 *secretsmanager.CreateSecretOutput, result2 error) {
-	fake.CreateSecretStub = nil
-	fake.createSecretReturns = struct {
+func (fake *FakeSecretsManager) CreateSecretWithContextReturns(result1 *secretsmanager.CreateSecretOutput, result2 error) {
+	fake.CreateSecretWithContextStub = nil
+	fake.createSecretWithContextReturns = struct {
 		result1 *secretsmanager.CreateSecretOutput
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeSecretsManager) CreateSecretReturnsOnCall(i int, result1 *secretsmanager.CreateSecretOutput, result2 error) {
-	fake.CreateSecretStub = nil
-	if fake.createSecretReturnsOnCall == nil {
-		fake.createSecretReturnsOnCall = make(map[int]struct {
+func (fake *FakeSecretsManager) CreateSecretWithContextReturnsOnCall(i int, result1 *secretsmanager.CreateSecretOutput, result2 error) {
+	fake.CreateSecretWithContextStub = nil
+	if fake.createSecretWithContextReturnsOnCall == nil {
+		fake.createSecretWithContextReturnsOnCall = make(map[int]struct {
 			result1 *secretsmanager.CreateSecretOutput
 			result2 error
 		})
 	}
-	fake.createSecretReturnsOnCall[i] = struct {
+	fake.createSecretWithContextReturnsOnCall[i] = struct {
 		result1 *secretsmanager.CreateSecretOutput
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeSecretsManager) GetSecretValue(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
-	fake.getSecretValueMutex.Lock()
-	ret, specificReturn := fake.getSecretValueReturnsOnCall[len(fake.getSecretValueArgsForCall)]
-	fake.getSecretValueArgsForCall = append(fake.getSecretValueArgsForCall, struct {
+func (fake *FakeSecretsManager) GetSecretValueWithContext(ctx aws.Context, input *secretsmanager.GetSecretValueInput, opts ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+	fake.getSecretValueWithContextMutex.Lock()
+	ret, specificReturn := fake.getSecretValueWithContextReturnsOnCall[len(fake.getSecretValueWithContextArgsForCall)]
+	fake.getSecretValueWithContextArgsForCall = append(fake.getSecretValueWithContextArgsForCall, struct {
+		ctx   aws.Context
 		input *secretsmanager.GetSecretValueInput
-	}{input})
-	fake.recordInvocation("GetSecretValue", []interface{}{input})
-	fake.getSecretValueMutex.Unlock()
-	if fake.GetSecretValueStub != nil {
-		return fake.GetSecretValueStub(input)
+		opts  []request.Option
+	}{ctx, input, opts})
+	fake.recordInvocation("GetSecretValueWithContext", []interface{}{ctx, input, opts})
+	fake.getSecretValueWithContextMutex.Unlock()
+	if fake.GetSecretValueWithContextStub != nil {
+		return fake.GetSecretValueWithContextStub(ctx, input, opts...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.getSecretValueReturns.result1, fake.getSecretValueReturns.result2
+	return fake.getSecretValueWithContextReturns.result1, fake.getSecretValueWithContextReturns.result2
 }
 
-func (fake *FakeSecretsManager) GetSecretValueCallCount() int {
-	fake.getSecretValueMutex.RLock()
-	defer fake.getSecretValueMutex.RUnlock()
-	return len(fake.getSecretValueArgsForCall)
+func (fake *FakeSecretsManager) GetSecretValueWithContextCallCount() int {
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
+	return len(fake.getSecretValueWithContextArgsForCall)
 }
 
-func (fake *FakeSecretsManager) GetSecretValueArgsForCall(i int) *secretsmanager.GetSecretValueInput {
-	fake.getSecretValueMutex.RLock()
-	defer fake.getSecretValueMutex.RUnlock()
-	return fake.getSecretValueArgsForCall[i].input
+func (fake *FakeSecretsManager) GetSecretValueWithContextArgsForCall(i int) (aws.Context, *secretsmanager.GetSecretValueInput, []request.Option) {
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
+	return fake.getSecretValueWithContextArgsForCall[i].ctx, fake.getSecretValueWithContextArgsForCall[i].input, fake.getSecretValueWithContextArgsForCall[i].opts
 }
 
-func (fake *FakeSecretsManager) GetSecretValueReturns(result1 *secretsmanager.GetSecretValueOutput, result2 error) {
-	fake.GetSecretValueStub = nil
-	fake.getSecretValueReturns = struct {
+func (fake *FakeSecretsManager) GetSecretValueWithContextReturns(result1 *secretsmanager.GetSecretValueOutput, result2 error) {
+	fake.GetSecretValueWithContextStub = nil
+	fake.getSecretValueWithContextReturns = struct {
 		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeSecretsManager) GetSecretValueReturnsOnCall(i int, result1 *secretsmanager.GetSecretValueOutput, result2 error) {
-	fake.GetSecretValueStub = nil
-	if fake.getSecretValueReturnsOnCall == nil {
-		fake.getSecretValueReturnsOnCall = make(map[int]struct {
+func (fake *FakeSecretsManager) GetSecretValueWithContextReturnsOnCall(i int, result1 *secretsmanager.GetSecretValueOutput, result2 error) {
+	fake.GetSecretValueWithContextStub = nil
+	if fake.getSecretValueWithContextReturnsOnCall == nil {
+		fake.getSecretValueWithContextReturnsOnCall = make(map[int]struct {
 			result1 *secretsmanager.GetSecretValueOutput
 			result2 error
 		})
 	}
-	fake.getSecretValueReturnsOnCall[i] = struct {
+	fake.getSecretValueWithContextReturnsOnCall[i] = struct {
 		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeSecretsManager) DeleteSecret(input *secretsmanager.DeleteSecretInput) (*secretsmanager.DeleteSecretOutput, error) {
-	fake.deleteSecretMutex.Lock()
-	ret, specificReturn := fake.deleteSecretReturnsOnCall[len(fake.deleteSecretArgsForCall)]
-	fake.deleteSecretArgsForCall = append(fake.deleteSecretArgsForCall, struct {
+func (fake *FakeSecretsManager) DeleteSecretWithContext(ctx aws.Context, input *secretsmanager.DeleteSecretInput, opts ...request.Option) (*secretsmanager.DeleteSecretOutput, error) {
+	fake.deleteSecretWithContextMutex.Lock()
+	ret, specificReturn := fake.deleteSecretWithContextReturnsOnCall[len(fake.deleteSecretWithContextArgsForCall)]
+	fake.deleteSecretWithContextArgsForCall = append(fake.deleteSecretWithContextArgsForCall, struct {
+		ctx   aws.Context
 		input *secretsmanager.DeleteSecretInput
-	}{input})
-	fake.recordInvocation("DeleteSecret", []interface{}{input})
-	fake.deleteSecretMutex.Unlock()
-	if fake.DeleteSecretStub != nil {
-		return fake.DeleteSecretStub(input)
+		opts  []request.Option
+	}{ctx, input, opts})
+	fake.recordInvocation("DeleteSecretWithContext", []interface{}{ctx, input, opts})
+	fake.deleteSecretWithContextMutex.Unlock()
+	if fake.DeleteSecretWithContextStub != nil {
+		return fake.DeleteSecretWithContextStub(ctx, input, opts...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.deleteSecretReturns.result1, fake.deleteSecretReturns.result2
+	return fake.deleteSecretWithContextReturns.result1, fake.deleteSecretWithContextReturns.result2
 }
 
-func (fake *FakeSecretsManager) DeleteSecretCallCount() int {
-	fake.deleteSecretMutex.RLock()
-	defer fake.deleteSecretMutex.RUnlock()
-	return len(fake.deleteSecretArgsForCall)
+func (fake *FakeSecretsManager) DeleteSecretWithContextCallCount() int {
+	fake.deleteSecretWithContextMutex.RLock()
+	defer fake.deleteSecretWithContextMutex.RUnlock()
+	return len(fake.deleteSecretWithContextArgsForCall)
 }
 
-func (fake *FakeSecretsManager) DeleteSecretArgsForCall(i int) *secretsmanager.DeleteSecretInput {
-	fake.deleteSecretMutex.RLock()
-	defer fake.deleteSecretMutex.RUnlock()
-	return fake.deleteSecretArgsForCall[i].input
+func (fake *FakeSecretsManager) DeleteSecretWithContextArgsForCall(i int) (aws.Context, *secretsmanager.DeleteSecretInput, []request.Option) {
+	fake.deleteSecretWithContextMutex.RLock()
+	defer fake.deleteSecretWithContextMutex.RUnlock()
+	return fake.deleteSecretWithContextArgsForCall[i].ctx, fake.deleteSecretWithContextArgsForCall[i].input, fake.deleteSecretWithContextArgsForCall[i].opts
 }
 
-func (fake *FakeSecretsManager) DeleteSecretReturns(result1 *secretsmanager.DeleteSecretOutput, result2 error) {
-	fake.DeleteSecretStub = nil
-	fake.deleteSecretReturns = struct {
+func (fake *FakeSecretsManager) DeleteSecretWithContextReturns(result1 *secretsmanager.DeleteSecretOutput, result2 error) {
+	fake.DeleteSecretWithContextStub = nil
+	fake.deleteSecretWithContextReturns = struct {
 		result1 *secretsmanager.DeleteSecretOutput
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeSecretsManager) DeleteSecretReturnsOnCall(i int, result1 *secretsmanager.DeleteSecretOutput, result2 error) {
-	fake.DeleteSecretStub = nil
-	if fake.deleteSecretReturnsOnCall == nil {
-		fake.deleteSecretReturnsOnCall = make(map[int]struct {
+func (fake *FakeSecretsManager) DeleteSecretWithContextReturnsOnCall(i int, result1 *secretsmanager.DeleteSecretOutput, result2 error) {
+	fake.DeleteSecretWithContextStub = nil
+	if fake.deleteSecretWithContextReturnsOnCall == nil {
+		fake.deleteSecretWithContextReturnsOnCall = make(map[int]struct {
 			result1 *secretsmanager.DeleteSecretOutput
 			result2 error
 		})
 	}
-	fake.deleteSecretReturnsOnCall[i] = struct {
+	fake.deleteSecretWithContextReturnsOnCall[i] = struct {
 		result1 *secretsmanager.DeleteSecretOutput
 		result2 error
 	}{result1, result2}
@@ -208,12 +222,12 @@ func (fake *FakeSecretsManager) DeleteSecretReturnsOnCall(i int, result1 *secret
 func (fake *FakeSecretsManager) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.createSecretMutex.RLock()
-	defer fake.createSecretMutex.RUnlock()
-	fake.getSecretValueMutex.RLock()
-	defer fake.getSecretValueMutex.RUnlock()
-	fake.deleteSecretMutex.RLock()
-	defer fake.deleteSecretMutex.RUnlock()
+	fake.createSecretWithContextMutex.RLock()
+	defer fake.createSecretWithContextMutex.RUnlock()
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
+	fake.deleteSecretWithContextMutex.RLock()
+	defer fake.deleteSecretWithContextMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

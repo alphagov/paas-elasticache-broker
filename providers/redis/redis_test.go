@@ -136,8 +136,9 @@ var _ = Describe("Provider", func() {
 			err := provider.Provision(ctx, instanceID, providers.ProvisionParameters{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(mockSecretsManager.CreateSecretCallCount()).To(Equal(1))
-			input := mockSecretsManager.CreateSecretArgsForCall(0)
+			Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
+			passedCtx, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
 			Expect(input.Name).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
 			Expect(*input.SecretString).ToNot(BeEmpty())
 			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
@@ -145,7 +146,7 @@ var _ = Describe("Provider", func() {
 
 		It("returns an error if we can't save the auth token in the secrets manager", func() {
 			smErr := errors.New("error in secrets manager")
-			mockSecretsManager.CreateSecretReturnsOnCall(0, nil, smErr)
+			mockSecretsManager.CreateSecretWithContextReturnsOnCall(0, nil, smErr)
 
 			instanceID := "foobar"
 			ctx := context.Background()
@@ -177,11 +178,12 @@ var _ = Describe("Provider", func() {
 
 			passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
 			Expect(passedCtx).To(Equal(ctx))
+			Expect(*passedInput.AuthToken).To(HaveLen(PasswordLength))
 			Expect(passedInput).To(Equal(&elasticache.CreateReplicationGroupInput{
 				Tags: []*elasticache.Tag{},
 				AtRestEncryptionEnabled:     aws.Bool(true),
 				TransitEncryptionEnabled:    aws.Bool(true),
-				AuthToken:                   aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+				AuthToken:                   passedInput.AuthToken,
 				AutomaticFailoverEnabled:    aws.Bool(true),
 				CacheNodeType:               aws.String("test instance type"),
 				CacheParameterGroupName:     aws.String(replicationGroupID),
@@ -275,11 +277,12 @@ var _ = Describe("Provider", func() {
 
 				passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
 				Expect(passedCtx).To(Equal(ctx))
+				Expect(*passedInput.AuthToken).To(HaveLen(PasswordLength))
 				Expect(passedInput).To(Equal(&elasticache.CreateReplicationGroupInput{
 					Tags: []*elasticache.Tag{},
 					AtRestEncryptionEnabled:     aws.Bool(true),
 					TransitEncryptionEnabled:    aws.Bool(true),
-					AuthToken:                   aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+					AuthToken:                   passedInput.AuthToken,
 					AutomaticFailoverEnabled:    aws.Bool(true),
 					CacheNodeType:               aws.String("test instance type"),
 					CacheParameterGroupName:     aws.String(replicationGroupID),
@@ -324,15 +327,16 @@ var _ = Describe("Provider", func() {
 			err := provider.Deprovision(ctx, instanceID, providers.DeprovisionParameters{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(mockSecretsManager.DeleteSecretCallCount()).To(Equal(1))
-			input := mockSecretsManager.DeleteSecretArgsForCall(0)
+			Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(1))
+			ctx, input, _ := mockSecretsManager.DeleteSecretWithContextArgsForCall(0)
+			Expect(ctx).To(Equal(ctx))
 			Expect(input.SecretId).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
 			Expect(*input.RecoveryWindowInDays).To(BeNumerically(">", 0))
 		})
 
 		It("returns an error if we can't save the auth token in the secrets manager", func() {
 			smErr := errors.New("error in secrets manager")
-			mockSecretsManager.DeleteSecretReturnsOnCall(0, nil, smErr)
+			mockSecretsManager.DeleteSecretWithContextReturnsOnCall(0, nil, smErr)
 
 			instanceID := "foobar"
 			ctx := context.Background()
@@ -364,7 +368,7 @@ var _ = Describe("Provider", func() {
 			deprovisionErr := provider.Deprovision(context.Background(), "foobar", providers.DeprovisionParameters{})
 			Expect(deprovisionErr).To(MatchError(deleteErr))
 
-			Expect(mockSecretsManager.DeleteSecretCallCount()).To(Equal(0))
+			Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(0))
 		})
 
 	})
@@ -567,7 +571,7 @@ var _ = Describe("Provider", func() {
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
 
-				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+				mockSecretsManager.GetSecretValueWithContextReturns(&secretsmanager.GetSecretValueOutput{
 					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
 				}, nil)
 
@@ -594,8 +598,9 @@ var _ = Describe("Provider", func() {
 					ReplicationGroupId: aws.String(replicationGroupID),
 				}))
 
-				Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
-				passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+				Expect(mockSecretsManager.GetSecretValueWithContextCallCount()).To(Equal(1))
+				passedCtx, passedSecretsManagerInput, _ := mockSecretsManager.GetSecretValueWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
 				Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
 					SecretId: aws.String(GetAuthTokenPath(instanceID)),
 				}))
@@ -622,7 +627,7 @@ var _ = Describe("Provider", func() {
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
 
-				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+				mockSecretsManager.GetSecretValueWithContextReturns(&secretsmanager.GetSecretValueOutput{
 					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
 				}, nil)
 
@@ -649,8 +654,9 @@ var _ = Describe("Provider", func() {
 					ReplicationGroupId: aws.String(replicationGroupID),
 				}))
 
-				Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
-				passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+				Expect(mockSecretsManager.GetSecretValueWithContextCallCount()).To(Equal(1))
+				passedCtx, passedSecretsManagerInput, _ := mockSecretsManager.GetSecretValueWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
 				Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
 					SecretId: aws.String(GetAuthTokenPath(instanceID)),
 				}))
@@ -666,7 +672,7 @@ var _ = Describe("Provider", func() {
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
 
-				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+				mockSecretsManager.GetSecretValueWithContextReturns(&secretsmanager.GetSecretValueOutput{
 					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
 				}, nil)
 
@@ -691,7 +697,7 @@ var _ = Describe("Provider", func() {
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
 
-				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+				mockSecretsManager.GetSecretValueWithContextReturns(&secretsmanager.GetSecretValueOutput{
 					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
 				}, nil)
 
@@ -718,8 +724,9 @@ var _ = Describe("Provider", func() {
 					ReplicationGroupId: aws.String(replicationGroupID),
 				}))
 
-				Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
-				passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+				Expect(mockSecretsManager.GetSecretValueWithContextCallCount()).To(Equal(1))
+				passedCtx, passedSecretsManagerInput, _ := mockSecretsManager.GetSecretValueWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
 				Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
 					SecretId: aws.String(GetAuthTokenPath(instanceID)),
 				}))
@@ -783,7 +790,7 @@ var _ = Describe("Provider", func() {
 			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
 
 			awsErr := awserr.New(secretsmanager.ErrCodeResourceNotFoundException, "mocked secret-not-found error", nil)
-			mockSecretsManager.GetSecretValueReturns(nil, awsErr)
+			mockSecretsManager.GetSecretValueWithContextReturns(nil, awsErr)
 
 			instanceID := "foobar"
 			bindingID := "test-binding"
@@ -808,14 +815,16 @@ var _ = Describe("Provider", func() {
 				ReplicationGroupId: aws.String(replicationGroupID),
 			}))
 
-			Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
-			passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+			Expect(mockSecretsManager.GetSecretValueWithContextCallCount()).To(Equal(1))
+			passedCtx, passedSecretsManagerInput, _ := mockSecretsManager.GetSecretValueWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
 			Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
 				SecretId: aws.String(GetAuthTokenPath(instanceID)),
 			}))
 
-			Expect(mockSecretsManager.CreateSecretCallCount()).To(Equal(1))
-			input := mockSecretsManager.CreateSecretArgsForCall(0)
+			Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
+			passedCtx, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
 			Expect(input.Name).To(Equal(aws.String(GetAuthTokenPath(instanceID))))
 			Expect(input.SecretString).To(Equal(aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=")))
 			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
