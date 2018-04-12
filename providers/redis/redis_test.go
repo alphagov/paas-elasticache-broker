@@ -356,6 +356,16 @@ var _ = Describe("Provider", func() {
 			Expect(deprovisionErr).To(MatchError(deleteErr))
 		})
 
+		It("does not delete the auth token from the secrets manager if deleting the replication group fails", func() {
+			deleteErr := errors.New("some error")
+			mockElasticache.DeleteReplicationGroupWithContextReturnsOnCall(0, nil, deleteErr)
+
+			deprovisionErr := provider.Deprovision(context.Background(), "foobar", providers.DeprovisionParameters{})
+			Expect(deprovisionErr).To(MatchError(deleteErr))
+
+			Expect(mockSecretsManager.DeleteSecretCallCount()).To(Equal(0))
+		})
+
 	})
 
 	Context("when getting the status of the cluster", func() {
