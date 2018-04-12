@@ -15,29 +15,42 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
 var _ providers.Provider = &RedisProvider{}
 
 // RedisProvider is the Redis broker provider
 type RedisProvider struct {
-	elastiCache   providers.ElastiCache
-	awsAccountID  string
-	awsPartition  string
-	awsRegion     string
-	logger        lager.Logger
-	authTokenSeed string
+	elastiCache    providers.ElastiCache
+	secretsManager providers.SecretsManager
+	awsAccountID   string
+	awsPartition   string
+	awsRegion      string
+	logger         lager.Logger
+	authTokenSeed  string
+	kmsKeyID       string
 }
 
 // NewProvider creates a new Redis provider
-func NewProvider(elastiCache providers.ElastiCache, awsAccountID, awsPartition, awsRegion string, logger lager.Logger, authTokenSeed string) *RedisProvider {
+func NewProvider(
+	elastiCache providers.ElastiCache,
+	secretsManager providers.SecretsManager,
+	awsAccountID, awsPartition,
+	awsRegion string,
+	logger lager.Logger,
+	authTokenSeed string,
+	kmsKeyID string,
+) *RedisProvider {
 	return &RedisProvider{
-		elastiCache:   elastiCache,
-		awsAccountID:  awsAccountID,
-		awsPartition:  awsPartition,
-		awsRegion:     awsRegion,
-		logger:        logger,
-		authTokenSeed: authTokenSeed,
+		elastiCache:    elastiCache,
+		secretsManager: secretsManager,
+		awsAccountID:   awsAccountID,
+		awsPartition:   awsPartition,
+		awsRegion:      awsRegion,
+		logger:         logger,
+		authTokenSeed:  authTokenSeed,
+		kmsKeyID:       kmsKeyID,
 	}
 }
 
@@ -112,11 +125,18 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 
 	cacheParameterGroupName := replicationGroupID
 
+	// TODO: generate secure random auth token
+	authToken := GenerateAuthToken(p.authTokenSeed, instanceID)
+	err = p.CreateAuthTokenSecret(instanceID, authToken)
+	if err != nil {
+		return fmt.Errorf("Failed to create auth token: %s", err.Error())
+	}
+
 	input := &elasticache.CreateReplicationGroupInput{
 		Tags: []*elasticache.Tag{},
 		AtRestEncryptionEnabled:     aws.Bool(true),
 		TransitEncryptionEnabled:    aws.Bool(true),
-		AuthToken:                   aws.String(GenerateAuthToken(p.authTokenSeed, instanceID)),
+		AuthToken:                   aws.String(authToken),
 		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
 		CacheNodeType:               aws.String(params.InstanceType),
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
@@ -373,6 +393,16 @@ func (p *RedisProvider) snapshotARN(snapshotID string) string {
 	return fmt.Sprintf("arn:%s:elasticache:%s:%s:snapshot:%s", p.awsPartition, p.awsRegion, p.awsAccountID, snapshotID)
 }
 
+func (p *RedisProvider) CreateAuthTokenSecret(instanceID string, authToken string) error {
+	name := GetAuthTokenPath(instanceID)
+	_, err := p.secretsManager.CreateSecret(&secretsmanager.CreateSecretInput{
+		Name:         aws.String(name),
+		SecretString: aws.String(authToken),
+		KmsKeyId:     aws.String(p.kmsKeyID),
+	})
+	return err
+}
+
 func tagsValues(elasticacheTags []*elasticache.Tag) map[string]string {
 	tags := map[string]string{}
 	if elasticacheTags == nil {
@@ -398,4 +428,8 @@ func GenerateReplicationGroupName(instanceID string) string {
 func GenerateAuthToken(seed string, instanceID string) string {
 	sha := sha256.Sum256([]byte(seed + instanceID))
 	return base64.URLEncoding.EncodeToString(sha[:])
+}
+
+func GetAuthTokenPath(instanceID string) string {
+	return fmt.Sprintf("elasticache-broker/%s/auth-token", instanceID)
 }

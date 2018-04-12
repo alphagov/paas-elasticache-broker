@@ -23,20 +23,25 @@ import (
 
 var _ = Describe("Provider", func() {
 	var (
-		mockElasticache *mocks.FakeElastiCache
-		provider        *RedisProvider
-		AuthTokenSeed   = "super-secret"
+		mockElasticache    *mocks.FakeElastiCache
+		mockSecretsManager *mocks.FakeSecretsManager
+		provider           *RedisProvider
+		AuthTokenSeed      = "super-secret"
+		kmsKeyID           = "my-kms-key"
 	)
 
 	BeforeEach(func() {
 		mockElasticache = &mocks.FakeElastiCache{}
+		mockSecretsManager = &mocks.FakeSecretsManager{}
 		provider = NewProvider(
 			mockElasticache,
+			mockSecretsManager,
 			"123456789012",
 			"aws",
 			"eu-west-1",
 			lager.NewLogger("logger"),
 			AuthTokenSeed,
+			kmsKeyID,
 		)
 	})
 
@@ -122,6 +127,29 @@ var _ = Describe("Provider", func() {
 
 			Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(1))
 			Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(0))
+		})
+
+		It("saves the auth token in the secrets manager", func() {
+			instanceID := "foobar"
+			ctx := context.Background()
+			err := provider.Provision(ctx, instanceID, providers.ProvisionParameters{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(mockSecretsManager.CreateSecretCallCount()).To(Equal(1))
+			input := mockSecretsManager.CreateSecretArgsForCall(0)
+			Expect(input.Name).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
+			Expect(*input.SecretString).ToNot(BeEmpty())
+			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
+		})
+
+		It("returns an error if we can't save the auth token in the secrets manager", func() {
+			smErr := errors.New("error in secrets manager")
+			mockSecretsManager.CreateSecretReturnsOnCall(0, nil, smErr)
+
+			instanceID := "foobar"
+			ctx := context.Background()
+			err := provider.Provision(ctx, instanceID, providers.ProvisionParameters{})
+			Expect(err).To(MatchError(smErr))
 		})
 
 		It("creates the replication group", func() {
