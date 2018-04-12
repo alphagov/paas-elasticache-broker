@@ -131,7 +131,7 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 	authToken := GenerateAuthToken(p.authTokenSeed, instanceID)
 	err = p.CreateAuthTokenSecret(instanceID, authToken)
 	if err != nil {
-		return fmt.Errorf("Failed to create auth token: %s", err.Error())
+		return fmt.Errorf("failed to create auth token: %s", err.Error())
 	}
 
 	input := &elasticache.CreateReplicationGroupInput{

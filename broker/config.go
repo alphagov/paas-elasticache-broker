@@ -36,6 +36,7 @@ type Config struct {
 	VpcSecurityGroupIds  []string                  `json:"vpc_security_group_ids"`
 	Catalog              brokerapi.CatalogResponse `json:"catalog"`
 	PlanConfigs          map[string]PlanConfig     `json:"plan_configs"`
+	KmsKeyID             string                    `json:"kms_key_id"`
 }
 
 func (c Config) GetPlanConfig(planID string) (PlanConfig, error) {

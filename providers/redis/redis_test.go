@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	uuid "github.com/satori/go.uuid"
 
 	"code.cloudfoundry.org/lager"
@@ -149,7 +150,7 @@ var _ = Describe("Provider", func() {
 			instanceID := "foobar"
 			ctx := context.Background()
 			err := provider.Provision(ctx, instanceID, providers.ProvisionParameters{})
-			Expect(err).To(MatchError(smErr))
+			Expect(err).To(MatchError("failed to create auth token: " + smErr.Error()))
 		})
 
 		It("creates the replication group", func() {
@@ -566,6 +567,10 @@ var _ = Describe("Provider", func() {
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
 
+				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+				}, nil)
+
 				instanceID := "foobar"
 				bindingID := "test-binding"
 				ctx := context.Background()
@@ -583,10 +588,16 @@ var _ = Describe("Provider", func() {
 				}))
 
 				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
-				passedCtx, passedInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
+				passedCtx, passedElasticacheInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
 				Expect(passedCtx).To(Equal(ctx))
-				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
+				Expect(passedElasticacheInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
 					ReplicationGroupId: aws.String(replicationGroupID),
+				}))
+
+				Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
+				passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+				Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
+					SecretId: aws.String(GetAuthTokenPath(instanceID)),
 				}))
 			})
 		})
@@ -611,6 +622,10 @@ var _ = Describe("Provider", func() {
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
 
+				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+				}, nil)
+
 				instanceID := "foobar"
 				bindingID := "test-binding"
 				ctx := context.Background()
@@ -633,6 +648,12 @@ var _ = Describe("Provider", func() {
 				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
 					ReplicationGroupId: aws.String(replicationGroupID),
 				}))
+
+				Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
+				passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+				Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
+					SecretId: aws.String(GetAuthTokenPath(instanceID)),
+				}))
 			})
 
 			It("should return error if zero node groups are returned", func() {
@@ -644,6 +665,11 @@ var _ = Describe("Provider", func() {
 					},
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+
+				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+				}, nil)
+
 				_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
 				Expect(err).To(HaveOccurred())
 			})
@@ -664,6 +690,10 @@ var _ = Describe("Provider", func() {
 					},
 				}
 				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+
+				mockSecretsManager.GetSecretValueReturns(&secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+				}, nil)
 
 				instanceID := "foobar"
 				bindingID := "test-binding"
@@ -686,6 +716,12 @@ var _ = Describe("Provider", func() {
 				Expect(passedCtx).To(Equal(ctx))
 				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
 					ReplicationGroupId: aws.String(replicationGroupID),
+				}))
+
+				Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
+				passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+				Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
+					SecretId: aws.String(GetAuthTokenPath(instanceID)),
 				}))
 			})
 		})

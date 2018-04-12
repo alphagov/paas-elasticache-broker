@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-cf/brokerapi"
 )
@@ -51,7 +52,8 @@ func newLogger(logLevel string) lager.Logger {
 func newBroker(config broker.Config, logger lager.Logger) (*broker.Broker, error) {
 	awsConfig := aws.NewConfig().WithRegion(config.Region)
 	awsSession := session.Must(session.NewSession(awsConfig))
-	svc := elasticache.New(awsSession)
+	elastiCache := elasticache.New(awsSession)
+	secretsManager := secretsmanager.New(awsSession)
 
 	awsAccountID, err := userAccount(sts.New(awsSession))
 	if err != nil {
@@ -60,7 +62,7 @@ func newBroker(config broker.Config, logger lager.Logger) (*broker.Broker, error
 	awsPartition := "aws"
 	awsRegion := config.Region
 
-	return broker.New(config, redis.NewProvider(svc, awsAccountID, awsPartition, awsRegion, logger, config.AuthTokenSeed), logger), nil
+	return broker.New(config, redis.NewProvider(elastiCache, secretsManager, awsAccountID, awsPartition, awsRegion, logger, config.AuthTokenSeed, config.KmsKeyID), logger), nil
 }
 
 func userAccount(stssvc *sts.STS) (string, error) {
