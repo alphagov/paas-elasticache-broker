@@ -30,7 +30,7 @@ type RedisProvider struct {
 	awsPartition   string
 	awsRegion      string
 	logger         lager.Logger
-	authTokenSeed  string
+	authTokenSeed  string // TODO: remove after all auth tokens were migrated to the Secrets Manager
 	kmsKeyID       string
 }
 
