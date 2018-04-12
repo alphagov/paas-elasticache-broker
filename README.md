@@ -40,7 +40,6 @@ You have to pass in a configuration JSON file with the following format:
   "broker_name": "Broker name",
   "username": "Broker http auth username",
   "password": "Broker http auth password",
-  "auth_token_seed": "common auth token seed (secret)",
   "region": "<%= p('elasticache-broker.region') %>",
   "cache_subnet_group_name": "AWS Elasticache cache subnet group name",
   "vpc_security_group_ids": "List of AWS security group ids",

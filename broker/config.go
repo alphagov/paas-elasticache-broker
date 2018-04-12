@@ -31,7 +31,6 @@ type Config struct {
 	Password             string                    `json:"password"`
 	Region               string                    `json:"region"`
 	BrokerName           string                    `json:"broker_name"`
-	AuthTokenSeed        string                    `json:"auth_token_seed"` // TODO: remove after all auth tokens were migrated to the Secrets Manager
 	CacheSubnetGroupName string                    `json:"cache_subnet_group_name"`
 	VpcSecurityGroupIds  []string                  `json:"vpc_security_group_ids"`
 	Catalog              brokerapi.CatalogResponse `json:"catalog"`
@@ -94,10 +93,6 @@ func (c Config) Validate() error {
 
 	if c.BrokerName == "" {
 		return errors.New("Must provide a non-empty broker_name")
-	}
-
-	if c.AuthTokenSeed == "" {
-		return errors.New("Must provide a non-empty auth_token_seed")
 	}
 
 	if c.CacheSubnetGroupName == "" {
