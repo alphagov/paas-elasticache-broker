@@ -721,6 +721,60 @@ var _ = Describe("Provider", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("should migrate old-style auth tokens to AWS Secrets Manager", func() {
+			replicationGroupID := "cf-qwkec4pxhft6q"
+
+			awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{
+						ConfigurationEndpoint: &elasticache.Endpoint{
+							Address: aws.String("test-host"),
+							Port:    aws.Int64(1234),
+						},
+					},
+				},
+			}
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+
+			awsErr := awserr.New(secretsmanager.ErrCodeResourceNotFoundException, "mocked secret-not-found error", nil)
+			mockSecretsManager.GetSecretValueReturns(nil, awsErr)
+
+			instanceID := "foobar"
+			bindingID := "test-binding"
+			ctx := context.Background()
+
+			credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(credentials).To(Equal(&providers.Credentials{
+				Host:       "test-host",
+				Port:       1234,
+				Name:       "cf-qwkec4pxhft6q",
+				Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
+				URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
+				TLSEnabled: true,
+			}))
+
+			Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
+			passedCtx, passedElasticacheInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(passedElasticacheInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
+				ReplicationGroupId: aws.String(replicationGroupID),
+			}))
+
+			Expect(mockSecretsManager.GetSecretValueCallCount()).To(Equal(1))
+			passedSecretsManagerInput := mockSecretsManager.GetSecretValueArgsForCall(0)
+			Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
+				SecretId: aws.String(GetAuthTokenPath(instanceID)),
+			}))
+
+			Expect(mockSecretsManager.CreateSecretCallCount()).To(Equal(1))
+			input := mockSecretsManager.CreateSecretArgsForCall(0)
+			Expect(input.Name).To(Equal(aws.String(GetAuthTokenPath(instanceID))))
+			Expect(input.SecretString).To(Equal(aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=")))
+			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
+		})
+
 	})
 
 	Context("when deleting a parameter group", func() {

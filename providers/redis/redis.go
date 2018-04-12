@@ -20,6 +20,8 @@ import (
 
 var _ providers.Provider = &RedisProvider{}
 
+const PasswordLength = 32
+
 // RedisProvider is the Redis broker provider
 type RedisProvider struct {
 	elastiCache    providers.ElastiCache
@@ -337,17 +339,40 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 		port = *replicationGroup.NodeGroups[0].PrimaryEndpoint.Port
 	}
 
-	password := GenerateAuthToken(p.authTokenSeed, instanceID)
+	authTokenSecret, err := p.secretsManager.GetSecretValue(&secretsmanager.GetSecretValueInput{
+		SecretId: aws.String(GetAuthTokenPath(instanceID)),
+	})
+	var authToken string
+	if err == nil {
+		authToken = aws.StringValue(authTokenSecret.SecretString)
+	} else {
+		awsErr, ok := err.(awserr.Error)
+		if !ok {
+			return nil, err
+		}
+		if awsErr.Code() != secretsmanager.ErrCodeResourceNotFoundException {
+			return nil, err
+		}
+
+		// For existing instance we save the old auth token in the secrets manager
+		// TODO: replace this code with returning an error if all auth tokens were saved in the store
+		authToken = GenerateAuthToken(p.authTokenSeed, instanceID)
+		err = p.CreateAuthTokenSecret(instanceID, authToken)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	uri := &url.URL{
 		Scheme: "rediss",
 		Host:   fmt.Sprintf("%s:%d", host, port),
-		User:   url.UserPassword("x", password),
+		User:   url.UserPassword("x", authToken),
 	}
 	return &providers.Credentials{
 		Host:       host,
 		Port:       port,
 		Name:       replicationGroupID,
-		Password:   password,
+		Password:   authToken,
 		TLSEnabled: true,
 		URI:        uri.String(),
 	}, nil
