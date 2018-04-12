@@ -34,6 +34,7 @@ var _ = Describe("Config", func() {
 			PlanConfigs: map[string]PlanConfig{
 				"plan1": PlanConfig{},
 			},
+			KmsKeyID: "my-kms-key",
 		}
 	)
 
@@ -84,6 +85,11 @@ var _ = Describe("Config", func() {
 
 		It("requires a cache subnet group name", func() {
 			config.CacheSubnetGroupName = ""
+			Expect(config.Validate()).NotTo(Succeed())
+		})
+
+		It("requires a kms key id", func() {
+			config.KmsKeyID = ""
 			Expect(config.Validate()).NotTo(Succeed())
 		})
 

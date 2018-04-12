@@ -8,6 +8,7 @@
 	"password": "password",
 	"broker_name": "elasticache-integration-test",
 	"auth_token_seed": "sesamesunflower",
+	"kms_key_id": "alias/elasticache-broker-test",
 	"catalog": {
 		"services": [
 			{

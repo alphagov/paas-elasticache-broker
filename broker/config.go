@@ -107,6 +107,10 @@ func (c Config) Validate() error {
 		return errors.New("Must provide at least one VPC security group ID")
 	}
 
+	if c.KmsKeyID == "" {
+		return errors.New("Must provide a non-empty kms_key_id")
+	}
+
 	for _, s := range c.Catalog.Services {
 		for _, p := range s.Plans {
 			if !c.hasPlanConfig(p.ID) {
