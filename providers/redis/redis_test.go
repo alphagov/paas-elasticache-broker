@@ -199,6 +199,9 @@ var _ = Describe("Provider", func() {
 				SnapshotRetentionLimit:      aws.Int64(7),
 				SnapshotWindow:              aws.String("02:00-05:00"),
 			}))
+
+			Expect(mockElasticache.DeleteCacheParameterGroupWithContextCallCount()).To(Equal(0))
+			Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(0))
 		})
 
 		It("creates a replication group without backup or failover", func() {
@@ -241,12 +244,39 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
-		It("handles errors during replication group creation", func() {
-			createErr := errors.New("some err")
-			mockElasticache.CreateReplicationGroupWithContextReturnsOnCall(0, nil, createErr)
+		Context("when provision fails", func() {
+			var (
+				ctx          context.Context
+				createErr    = errors.New("some err")
+				provisionErr error
+			)
 
-			provisionErr := provider.Provision(context.Background(), "foobar", providers.ProvisionParameters{})
-			Expect(provisionErr).To(MatchError(createErr))
+			BeforeEach(func() {
+				ctx = context.Background()
+				mockElasticache.CreateReplicationGroupWithContextReturnsOnCall(0, nil, createErr)
+				provisionErr = provider.Provision(ctx, "foobar", providers.ProvisionParameters{})
+			})
+
+			It("handles errors during replication group creation", func() {
+				Expect(provisionErr).To(MatchError(createErr))
+			})
+
+			It("deletes the auth token from the Secrets Manager", func() {
+				Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(1))
+				passedCtx, input, _ := mockSecretsManager.DeleteSecretWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(input.SecretId).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
+				Expect(*input.RecoveryWindowInDays).To(Equal(int64(7)))
+			})
+
+			It("deletes the cache parameter group", func() {
+				Expect(mockElasticache.DeleteCacheParameterGroupWithContextCallCount()).To(Equal(1))
+				passedCtx, receivedInput, _ := mockElasticache.DeleteCacheParameterGroupWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(receivedInput).To(Equal(&elasticache.DeleteCacheParameterGroupInput{
+					CacheParameterGroupName: aws.String("cf-qwkec4pxhft6q"),
+				}))
+			})
 		})
 
 		Context("when restoring from a snapshot", func() {

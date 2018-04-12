@@ -165,8 +165,18 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		})
 	}
 
-	_, err = p.elastiCache.CreateReplicationGroupWithContext(ctx, input)
-	return err
+	_, createErr := p.elastiCache.CreateReplicationGroupWithContext(ctx, input)
+	if createErr != nil {
+		err := p.DeleteCacheParameterGroup(ctx, instanceID)
+		if err != nil {
+			p.logger.Error("delete-cache-parameter-group", err)
+		}
+		err = p.DeleteAuthTokenSecret(ctx, instanceID, 7)
+		if err != nil {
+			p.logger.Error("delete-auth-token-secret", err)
+		}
+	}
+	return createErr
 }
 
 // Deprovision deletes the replication group
