@@ -62,7 +62,12 @@ func newBroker(config broker.Config, logger lager.Logger) (*broker.Broker, error
 	awsPartition := "aws"
 	awsRegion := config.Region
 
-	return broker.New(config, redis.NewProvider(elastiCache, secretsManager, awsAccountID, awsPartition, awsRegion, logger, config.AuthTokenSeed, config.KmsKeyID), logger), nil
+	provider := redis.NewProvider(
+		elastiCache, secretsManager, awsAccountID, awsPartition, awsRegion, logger,
+		config.AuthTokenSeed, config.KmsKeyID, config.SecretsManagerPath,
+	)
+
+	return broker.New(config, provider, logger), nil
 }
 
 func userAccount(stssvc *sts.STS) (string, error) {

@@ -47,7 +47,8 @@ You have to pass in a configuration JSON file with the following format:
   "catalog": <Broker catalog JSON>,
   "plan_configs": <Plan config JSON>,
   "log_level": "Logging level, valid values are: DEBUG, INFO, ERROR, FATAL",
-  "kms_key_id": KMS key used for storing generated auth tokens in the AWS Secrets Manager service
+  "kms_key_id": "KMS key used for storing generated auth tokens in the AWS Secrets Manager service",
+  "secrets_manager_path": "The path prefix used for secrets stored in AWS Secrets Manager service"
 }
 ```
 

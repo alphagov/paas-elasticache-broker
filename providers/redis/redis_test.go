@@ -29,6 +29,7 @@ var _ = Describe("Provider", func() {
 		provider           *RedisProvider
 		AuthTokenSeed      = "super-secret"
 		kmsKeyID           = "my-kms-key"
+		secretsManagerPath string
 		ctx                context.Context
 		instanceID         string
 		replicationGroupID string
@@ -37,6 +38,13 @@ var _ = Describe("Provider", func() {
 	BeforeEach(func() {
 		mockElasticache = &mocks.FakeElastiCache{}
 		mockSecretsManager = &mocks.FakeSecretsManager{}
+		ctx = context.Background()
+		instanceID = "foobar"
+		replicationGroupID = "cf-qwkec4pxhft6q"
+		secretsManagerPath = "elasticache-broker-test"
+	})
+
+	JustBeforeEach(func() {
 		provider = NewProvider(
 			mockElasticache,
 			mockSecretsManager,
@@ -46,10 +54,8 @@ var _ = Describe("Provider", func() {
 			lager.NewLogger("logger"),
 			AuthTokenSeed,
 			kmsKeyID,
+			secretsManagerPath,
 		)
-		ctx = context.Background()
-		instanceID = "foobar"
-		replicationGroupID = "cf-qwkec4pxhft6q"
 	})
 
 	Context("when provisioning", func() {
@@ -162,9 +168,20 @@ var _ = Describe("Provider", func() {
 			Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
 			passedCtx, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
 			Expect(passedCtx).To(Equal(ctx))
-			Expect(input.Name).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
+			Expect(input.Name).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
 			Expect(*input.SecretString).ToNot(BeEmpty())
 			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
+		})
+
+		Context("when the secrets manager path contains a trailing /", func() {
+			BeforeEach(func() {
+				secretsManagerPath = "elasticache-broker-test/"
+			})
+
+			It("strips it from the path", func() {
+				_, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
+				Expect(input.Name).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
+			})
 		})
 
 		Context("when creating the auth token in the secrets manager fails", func() {
@@ -261,7 +278,7 @@ var _ = Describe("Provider", func() {
 				Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(1))
 				passedCtx, input, _ := mockSecretsManager.DeleteSecretWithContextArgsForCall(0)
 				Expect(passedCtx).To(Equal(ctx))
-				Expect(input.SecretId).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
+				Expect(input.SecretId).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
 				Expect(*input.RecoveryWindowInDays).To(Equal(int64(7)))
 			})
 
@@ -343,7 +360,7 @@ var _ = Describe("Provider", func() {
 			Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(1))
 			ctx, input, _ := mockSecretsManager.DeleteSecretWithContextArgsForCall(0)
 			Expect(ctx).To(Equal(ctx))
-			Expect(input.SecretId).To(Equal(aws.String("elasticache-broker/foobar/auth-token")))
+			Expect(input.SecretId).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
 			Expect(*input.RecoveryWindowInDays).To(Equal(int64(30)))
 		})
 
@@ -621,7 +638,7 @@ var _ = Describe("Provider", func() {
 			passedCtx, passedSecretsManagerInput, _ := mockSecretsManager.GetSecretValueWithContextArgsForCall(0)
 			Expect(passedCtx).To(Equal(ctx))
 			Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
-				SecretId: aws.String(GetAuthTokenPath(instanceID)),
+				SecretId: aws.String("elasticache-broker-test/foobar/auth-token"),
 			}))
 		})
 
@@ -770,7 +787,7 @@ var _ = Describe("Provider", func() {
 				Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
 				passedCtx, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
 				Expect(passedCtx).To(Equal(ctx))
-				Expect(input.Name).To(Equal(aws.String(GetAuthTokenPath(instanceID))))
+				Expect(input.Name).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
 				Expect(input.SecretString).To(Equal(aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=")))
 				Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
 			})

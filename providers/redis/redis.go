@@ -24,14 +24,15 @@ const PasswordLength = 32
 
 // RedisProvider is the Redis broker provider
 type RedisProvider struct {
-	elastiCache    providers.ElastiCache
-	secretsManager providers.SecretsManager
-	awsAccountID   string
-	awsPartition   string
-	awsRegion      string
-	logger         lager.Logger
-	authTokenSeed  string // TODO: remove after all auth tokens were migrated to the Secrets Manager
-	kmsKeyID       string
+	elastiCache        providers.ElastiCache
+	secretsManager     providers.SecretsManager
+	awsAccountID       string
+	awsPartition       string
+	awsRegion          string
+	logger             lager.Logger
+	authTokenSeed      string // TODO: remove after all auth tokens were migrated to the Secrets Manager
+	kmsKeyID           string
+	secretsManagerPath string
 }
 
 // NewProvider creates a new Redis provider
@@ -43,16 +44,18 @@ func NewProvider(
 	logger lager.Logger,
 	authTokenSeed string,
 	kmsKeyID string,
+	secretsManagerPath string,
 ) *RedisProvider {
 	return &RedisProvider{
-		elastiCache:    elastiCache,
-		secretsManager: secretsManager,
-		awsAccountID:   awsAccountID,
-		awsPartition:   awsPartition,
-		awsRegion:      awsRegion,
-		logger:         logger,
-		authTokenSeed:  authTokenSeed,
-		kmsKeyID:       kmsKeyID,
+		elastiCache:        elastiCache,
+		secretsManager:     secretsManager,
+		awsAccountID:       awsAccountID,
+		awsPartition:       awsPartition,
+		awsRegion:          awsRegion,
+		logger:             logger,
+		authTokenSeed:      authTokenSeed,
+		kmsKeyID:           kmsKeyID,
+		secretsManagerPath: strings.TrimRight(secretsManagerPath, "/"),
 	}
 }
 
@@ -349,7 +352,7 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 	}
 
 	authTokenSecret, err := p.secretsManager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
-		SecretId: aws.String(GetAuthTokenPath(instanceID)),
+		SecretId: aws.String(p.getAuthTokenPath(instanceID)),
 	})
 	var authToken string
 	if err == nil {
@@ -437,7 +440,7 @@ func (p *RedisProvider) snapshotARN(snapshotID string) string {
 }
 
 func (p *RedisProvider) CreateAuthTokenSecret(ctx context.Context, instanceID string, authToken string) error {
-	name := GetAuthTokenPath(instanceID)
+	name := p.getAuthTokenPath(instanceID)
 	_, err := p.secretsManager.CreateSecretWithContext(ctx, &secretsmanager.CreateSecretInput{
 		Name:         aws.String(name),
 		SecretString: aws.String(authToken),
@@ -447,12 +450,16 @@ func (p *RedisProvider) CreateAuthTokenSecret(ctx context.Context, instanceID st
 }
 
 func (p *RedisProvider) DeleteAuthTokenSecret(ctx context.Context, instanceID string, recoveryWindowInDays int) error {
-	name := GetAuthTokenPath(instanceID)
+	name := p.getAuthTokenPath(instanceID)
 	_, err := p.secretsManager.DeleteSecretWithContext(ctx, &secretsmanager.DeleteSecretInput{
 		SecretId:             aws.String(name),
 		RecoveryWindowInDays: aws.Int64(int64(recoveryWindowInDays)),
 	})
 	return err
+}
+
+func (p *RedisProvider) getAuthTokenPath(instanceID string) string {
+	return fmt.Sprintf("%s/%s/auth-token", p.secretsManagerPath, instanceID)
 }
 
 func tagsValues(elasticacheTags []*elasticache.Tag) map[string]string {
@@ -486,8 +493,4 @@ func DeprecatedGenerateAuthToken(seed string, instanceID string) string {
 // GenerateAuthToken generates an alphanumeric cryptographically-secure password
 func GenerateAuthToken() string {
 	return RandomAlphaNum(PasswordLength)
-}
-
-func GetAuthTokenPath(instanceID string) string {
-	return fmt.Sprintf("elasticache-broker/%s/auth-token", instanceID)
 }

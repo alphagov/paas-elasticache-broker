@@ -37,6 +37,7 @@ type Config struct {
 	Catalog              brokerapi.CatalogResponse `json:"catalog"`
 	PlanConfigs          map[string]PlanConfig     `json:"plan_configs"`
 	KmsKeyID             string                    `json:"kms_key_id"`
+	SecretsManagerPath   string                    `json:"secrets_manager_path"`
 }
 
 func (c Config) GetPlanConfig(planID string) (PlanConfig, error) {
@@ -109,6 +110,10 @@ func (c Config) Validate() error {
 
 	if c.KmsKeyID == "" {
 		return errors.New("Must provide a non-empty kms_key_id")
+	}
+
+	if c.SecretsManagerPath == "" {
+		return errors.New("Must provide a non-empty secrets_manager_path")
 	}
 
 	for _, s := range c.Catalog.Services {
