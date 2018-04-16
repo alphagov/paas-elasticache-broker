@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	uuid "github.com/satori/go.uuid"
 
 	"code.cloudfoundry.org/lager"
@@ -23,37 +24,75 @@ import (
 
 var _ = Describe("Provider", func() {
 	var (
-		mockElasticache *mocks.FakeElastiCache
-		provider        *RedisProvider
-		AuthTokenSeed   = "super-secret"
+		mockElasticache    *mocks.FakeElastiCache
+		mockSecretsManager *mocks.FakeSecretsManager
+		provider           *RedisProvider
+		AuthTokenSeed      = "super-secret"
+		kmsKeyID           = "my-kms-key"
+		secretsManagerPath string
+		ctx                context.Context
+		instanceID         string
+		replicationGroupID string
 	)
 
 	BeforeEach(func() {
 		mockElasticache = &mocks.FakeElastiCache{}
+		mockSecretsManager = &mocks.FakeSecretsManager{}
+		ctx = context.Background()
+		instanceID = "foobar"
+		replicationGroupID = "cf-qwkec4pxhft6q"
+		secretsManagerPath = "elasticache-broker-test"
+	})
+
+	JustBeforeEach(func() {
 		provider = NewProvider(
 			mockElasticache,
+			mockSecretsManager,
 			"123456789012",
 			"aws",
 			"eu-west-1",
 			lager.NewLogger("logger"),
 			AuthTokenSeed,
+			kmsKeyID,
+			secretsManagerPath,
 		)
 	})
 
 	Context("when provisioning", func() {
-		It("creates a cache parameter group and sets the parameters", func() {
-			replicationGroupID := "cf-qwkec4pxhft6q"
-			instanceID := "foobar"
+		var (
+			provisionParams providers.ProvisionParameters
+			provisionErr    error
+		)
 
-			ctx := context.Background()
-
-			provider.Provision(ctx, instanceID, providers.ProvisionParameters{
+		BeforeEach(func() {
+			provisionParams = providers.ProvisionParameters{
+				InstanceType:               "test instance type",
+				CacheParameterGroupName:    replicationGroupID,
+				SecurityGroupIds:           []string{"test sg1"},
+				CacheSubnetGroupName:       "test subnet group",
+				PreferredMaintenanceWindow: "test maintenance window",
+				ReplicasPerNodeGroup:       0,
+				ShardCount:                 1,
+				SnapshotRetentionLimit:     7,
+				AutomaticFailoverEnabled:   true,
+				Description:                "test desc",
 				Parameters: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
-			})
+				Tags: map[string]string{},
+			}
+		})
 
+		JustBeforeEach(func() {
+			provisionErr = provider.Provision(ctx, instanceID, provisionParams)
+		})
+
+		It("succeeds", func() {
+			Expect(provisionErr).ToNot(HaveOccurred())
+		})
+
+		It("creates a cache parameter group and sets the parameters", func() {
 			Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(1))
 			receivedCtx, receivedInput, _ := mockElasticache.CreateCacheParameterGroupWithContextArgsForCall(0)
 			Expect(receivedCtx).To(Equal(ctx))
@@ -83,67 +122,81 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
-		It("creates a cache parameter group with cluster mode enabled", func() {
-			instanceID := "foobar"
-
-			ctx := context.Background()
-
-			provider.Provision(ctx, instanceID, providers.ProvisionParameters{
-				Parameters: map[string]string{
-					"other-key":       "value",
-					"cluster-enabled": "yes",
-				},
+		Context("when cluster mode is enabled", func() {
+			BeforeEach(func() {
+				provisionParams.Parameters["cluster-enabled"] = "yes"
 			})
 
-			_, paramGroupInput, _ := mockElasticache.ModifyCacheParameterGroupWithContextArgsForCall(0)
-			Expect(paramGroupInput.ParameterNameValues).To(ContainElement(&elasticache.ParameterNameValue{
-				ParameterName:  aws.String("cluster-enabled"),
-				ParameterValue: aws.String("yes"),
-			}))
+			It("creates a cache parameter group with cluster mode enabled", func() {
+				_, paramGroupInput, _ := mockElasticache.ModifyCacheParameterGroupWithContextArgsForCall(0)
+				Expect(paramGroupInput.ParameterNameValues).To(ContainElement(&elasticache.ParameterNameValue{
+					ParameterName:  aws.String("cluster-enabled"),
+					ParameterValue: aws.String("yes"),
+				}))
+			})
 		})
 
-		It("handles errors during parameter group creation", func() {
-			createErr := errors.New("some error")
-			mockElasticache.CreateCacheParameterGroupWithContextReturnsOnCall(0, nil, createErr)
+		Context("when creating a parameter group fails", func() {
+			var createErr = errors.New("some error")
 
-			provisionErr := provider.Provision(context.Background(), "foobar", providers.ProvisionParameters{})
-			Expect(provisionErr).To(MatchError(createErr))
+			BeforeEach(func() {
+				mockElasticache.CreateCacheParameterGroupWithContextReturnsOnCall(0, nil, createErr)
+			})
 
-			Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(0))
-			Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(0))
+			It("returns the error", func() {
+				Expect(provisionErr).To(MatchError(createErr))
+				Expect(mockElasticache.ModifyCacheParameterGroupWithContextCallCount()).To(Equal(0))
+				Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(0))
+			})
 		})
 
-		It("handles errors during parameter group update", func() {
-			modifyErr := errors.New("some error")
-			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, modifyErr)
+		Context("when modifying a parameter group fails", func() {
+			var modifyErr = errors.New("some error")
 
-			provisionErr := provider.Provision(context.Background(), "foobar", providers.ProvisionParameters{})
-			Expect(provisionErr).To(MatchError(modifyErr))
+			BeforeEach(func() {
+				mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, modifyErr)
+			})
 
-			Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(1))
-			Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(0))
+			It("returns the error", func() {
+				Expect(provisionErr).To(MatchError(modifyErr))
+				Expect(mockElasticache.CreateCacheParameterGroupWithContextCallCount()).To(Equal(1))
+				Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(0))
+			})
+		})
+
+		It("saves the auth token in the secrets manager", func() {
+			Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
+			passedCtx, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(input.Name).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
+			Expect(*input.SecretString).ToNot(BeEmpty())
+			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
+		})
+
+		Context("when the secrets manager path contains a trailing /", func() {
+			BeforeEach(func() {
+				secretsManagerPath = "elasticache-broker-test/"
+			})
+
+			It("strips it from the path", func() {
+				_, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
+				Expect(input.Name).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
+			})
+		})
+
+		Context("when creating the auth token in the secrets manager fails", func() {
+			var createErr = errors.New("error in secrets manager")
+
+			BeforeEach(func() {
+				mockSecretsManager.CreateSecretWithContextReturnsOnCall(0, nil, createErr)
+			})
+
+			It("returns with an error", func() {
+				Expect(provisionErr).To(MatchError("failed to create auth token: " + createErr.Error()))
+			})
 		})
 
 		It("creates the replication group", func() {
-			replicationGroupID := "cf-qwkec4pxhft6q"
-			ctx := context.Background()
-			instanceID := "foobar"
-			params := providers.ProvisionParameters{
-				InstanceType:               "test instance type",
-				CacheParameterGroupName:    replicationGroupID,
-				SecurityGroupIds:           []string{"test sg1"},
-				CacheSubnetGroupName:       "test subnet group",
-				PreferredMaintenanceWindow: "test maintenance window",
-				ReplicasPerNodeGroup:       0,
-				ShardCount:                 1,
-				SnapshotRetentionLimit:     7,
-				AutomaticFailoverEnabled:   true,
-				Description:                "test desc",
-				Parameters:                 map[string]string{},
-				Tags:                       map[string]string{},
-			}
-			provisionErr := provider.Provision(ctx, instanceID, params)
-			Expect(provisionErr).NotTo(HaveOccurred())
 			Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(1))
 
 			passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
@@ -152,7 +205,7 @@ var _ = Describe("Provider", func() {
 				Tags: []*elasticache.Tag{},
 				AtRestEncryptionEnabled:     aws.Bool(true),
 				TransitEncryptionEnabled:    aws.Bool(true),
-				AuthToken:                   aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+				AuthToken:                   passedInput.AuthToken,
 				AutomaticFailoverEnabled:    aws.Bool(true),
 				CacheNodeType:               aws.String("test instance type"),
 				CacheParameterGroupName:     aws.String(replicationGroupID),
@@ -170,117 +223,131 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
-		It("creates a replication group without backup or failover", func() {
-			replicationGroupID := "cf-qwkec4pxhft6q"
-			ctx := context.Background()
-			instanceID := "foobar"
-			params := providers.ProvisionParameters{
-				InstanceType:               "test instance type",
-				CacheParameterGroupName:    replicationGroupID,
-				SecurityGroupIds:           []string{"test sg1"},
-				CacheSubnetGroupName:       "test subnet group",
-				PreferredMaintenanceWindow: "test maintenance window",
-				ReplicasPerNodeGroup:       0,
-				ShardCount:                 1,
-				SnapshotRetentionLimit:     0,
-				AutomaticFailoverEnabled:   false,
-				Description:                "test desc",
-				Parameters:                 map[string]string{},
-				Tags:                       map[string]string{},
-			}
-			provisionErr := provider.Provision(ctx, instanceID, params)
-			Expect(provisionErr).NotTo(HaveOccurred())
-
-			passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
-			Expect(passedCtx).To(Equal(ctx))
-			Expect(passedInput.SnapshotRetentionLimit).To(BeNil())
-			Expect(passedInput.SnapshotWindow).To(BeNil())
-			Expect(*passedInput.AutomaticFailoverEnabled).To(BeFalse())
-		})
-
-		It("sets the tags properly", func() {
-			params := providers.ProvisionParameters{
-				Tags: map[string]string{"tag1": "tag value1", "tag2": "tag value2"},
-			}
-			provider.Provision(context.Background(), "foobar", params)
+		It("has an auth token with the right length", func() {
 			_, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
-			Expect(passedInput.Tags).To(ConsistOf([]*elasticache.Tag{
-				&elasticache.Tag{Key: aws.String("tag1"), Value: aws.String("tag value1")},
-				&elasticache.Tag{Key: aws.String("tag2"), Value: aws.String("tag value2")},
-			}))
+			Expect(*passedInput.AuthToken).To(HaveLen(PasswordLength))
 		})
 
-		It("handles errors during replication group creation", func() {
-			createErr := errors.New("some err")
-			mockElasticache.CreateReplicationGroupWithContextReturnsOnCall(0, nil, createErr)
+		Context("when tags are set", func() {
+			BeforeEach(func() {
+				provisionParams.Tags = map[string]string{"tag1": "tag value1", "tag2": "tag value2"}
+			})
 
-			provisionErr := provider.Provision(context.Background(), "foobar", providers.ProvisionParameters{})
-			Expect(provisionErr).To(MatchError(createErr))
+			It("should pass them correctly", func() {
+				_, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
+				Expect(passedInput.Tags).To(ConsistOf([]*elasticache.Tag{
+					&elasticache.Tag{Key: aws.String("tag1"), Value: aws.String("tag value1")},
+					&elasticache.Tag{Key: aws.String("tag2"), Value: aws.String("tag value2")},
+				}))
+			})
+		})
+
+		Context("when backup and failover is not enabled", func() {
+			BeforeEach(func() {
+				provisionParams.SnapshotRetentionLimit = 0
+				provisionParams.AutomaticFailoverEnabled = false
+			})
+
+			It("creates a replication group without backup or failover", func() {
+				Expect(provisionErr).NotTo(HaveOccurred())
+				passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(passedInput.SnapshotRetentionLimit).To(BeNil())
+				Expect(passedInput.SnapshotWindow).To(BeNil())
+				Expect(*passedInput.AutomaticFailoverEnabled).To(BeFalse())
+			})
+		})
+
+		It("doesn't clean up accidentally", func() {
+			Expect(mockElasticache.DeleteCacheParameterGroupWithContextCallCount()).To(Equal(0))
+			Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(0))
+		})
+
+		Context("when provision fails", func() {
+			var createErr = errors.New("some err")
+
+			BeforeEach(func() {
+				mockElasticache.CreateReplicationGroupWithContextReturnsOnCall(0, nil, createErr)
+			})
+
+			It("returns with the error", func() {
+				Expect(provisionErr).To(MatchError(createErr))
+			})
+
+			It("deletes the auth token from the Secrets Manager", func() {
+				Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(1))
+				passedCtx, input, _ := mockSecretsManager.DeleteSecretWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(input.SecretId).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
+				Expect(*input.RecoveryWindowInDays).To(Equal(int64(7)))
+			})
+
+			Context("if deleting the auth token fails", func() {
+				BeforeEach(func() {
+					mockSecretsManager.DeleteSecretWithContextReturns(nil, errors.New("some error"))
+				})
+				It("is ignored", func() {
+					Expect(provisionErr).To(MatchError(createErr))
+				})
+			})
+
+			It("deletes the cache parameter group", func() {
+				Expect(mockElasticache.DeleteCacheParameterGroupWithContextCallCount()).To(Equal(1))
+				passedCtx, receivedInput, _ := mockElasticache.DeleteCacheParameterGroupWithContextArgsForCall(0)
+				Expect(passedCtx).To(Equal(ctx))
+				Expect(receivedInput).To(Equal(&elasticache.DeleteCacheParameterGroupInput{
+					CacheParameterGroupName: aws.String("cf-qwkec4pxhft6q"),
+				}))
+			})
+
+			Context("if deleting the cache parameter group fails", func() {
+				BeforeEach(func() {
+					mockElasticache.DeleteCacheParameterGroupWithContextReturns(nil, errors.New("some error"))
+				})
+				It("is ignored", func() {
+					Expect(provisionErr).To(MatchError(createErr))
+				})
+			})
 		})
 
 		Context("when restoring from a snapshot", func() {
-			It("Passes the snapshot name to AWS", func() {
-				replicationGroupID := "cf-qwkec4pxhft6q"
-				snapshotToRestore := "automatic.cf-1234567890"
+			var snapshotToRestore = "automatic.cf-1234567890"
 
-				ctx := context.Background()
-				instanceID := "foobar"
-				params := providers.ProvisionParameters{
-					InstanceType:               "test instance type",
-					CacheParameterGroupName:    replicationGroupID,
-					SecurityGroupIds:           []string{"test sg1"},
-					CacheSubnetGroupName:       "test subnet group",
-					PreferredMaintenanceWindow: "test maintenance window",
-					ReplicasPerNodeGroup:       0,
-					ShardCount:                 1,
-					SnapshotRetentionLimit:     7,
-					RestoreFromSnapshot:        &snapshotToRestore,
-					AutomaticFailoverEnabled:   true,
-					Description:                "test desc",
-					Parameters:                 map[string]string{},
-					Tags:                       map[string]string{},
-				}
-				provisionErr := provider.Provision(ctx, instanceID, params)
+			BeforeEach(func() {
+				provisionParams.RestoreFromSnapshot = aws.String(snapshotToRestore)
+			})
+
+			It("passes the snapshot name to AWS", func() {
 				Expect(provisionErr).NotTo(HaveOccurred())
 				Expect(mockElasticache.CreateReplicationGroupWithContextCallCount()).To(Equal(1))
 
 				passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
 				Expect(passedCtx).To(Equal(ctx))
-				Expect(passedInput).To(Equal(&elasticache.CreateReplicationGroupInput{
-					Tags: []*elasticache.Tag{},
-					AtRestEncryptionEnabled:     aws.Bool(true),
-					TransitEncryptionEnabled:    aws.Bool(true),
-					AuthToken:                   aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
-					AutomaticFailoverEnabled:    aws.Bool(true),
-					CacheNodeType:               aws.String("test instance type"),
-					CacheParameterGroupName:     aws.String(replicationGroupID),
-					SecurityGroupIds:            aws.StringSlice([]string{"test sg1"}),
-					CacheSubnetGroupName:        aws.String("test subnet group"),
-					Engine:                      aws.String("redis"),
-					EngineVersion:               aws.String("3.2.6"),
-					PreferredMaintenanceWindow:  aws.String("test maintenance window"),
-					ReplicationGroupDescription: aws.String("test desc"),
-					ReplicationGroupId:          aws.String(replicationGroupID),
-					ReplicasPerNodeGroup:        aws.Int64(0),
-					NumNodeGroups:               aws.Int64(1),
-					SnapshotRetentionLimit:      aws.Int64(7),
-					SnapshotWindow:              aws.String("02:00-05:00"),
-					SnapshotName:                aws.String(snapshotToRestore),
-				}))
+				Expect(passedInput.SnapshotName).To(Equal(aws.String(snapshotToRestore)))
 			})
 		})
 	})
 
 	Context("when deprovisioning", func() {
 
-		It("deletes the replication group", func() {
-			replicationGroupID := "cf-qwkec4pxhft6q"
-			ctx := context.Background()
-			instanceID := "foobar"
-			params := providers.DeprovisionParameters{}
-			deprovisionErr := provider.Deprovision(ctx, instanceID, params)
-			Expect(deprovisionErr).ToNot(HaveOccurred())
+		var (
+			deprovisionParams providers.DeprovisionParameters
+			deprovisionErr    error
+		)
 
+		BeforeEach(func() {
+			deprovisionParams = providers.DeprovisionParameters{}
+		})
+
+		JustBeforeEach(func() {
+			deprovisionErr = provider.Deprovision(ctx, instanceID, deprovisionParams)
+		})
+
+		It("succeeds", func() {
+			Expect(deprovisionErr).ToNot(HaveOccurred())
+		})
+
+		It("deletes the replication group", func() {
 			Expect(mockElasticache.DeleteReplicationGroupWithContextCallCount()).To(Equal(1))
 			passedCtx, passedInput, _ := mockElasticache.DeleteReplicationGroupWithContextArgsForCall(0)
 			Expect(passedCtx).To(Equal(ctx))
@@ -289,23 +356,53 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
-		It("sets a parameter for creating a final snapshot if final snapshot name is set", func() {
-			params := providers.DeprovisionParameters{
-				FinalSnapshotIdentifier: "test snapshot",
-			}
-			provider.Deprovision(context.Background(), "foobar", params)
-			_, passedInput, _ := mockElasticache.DeleteReplicationGroupWithContextArgsForCall(0)
-			Expect(passedInput.FinalSnapshotIdentifier).To(Equal(aws.String("test snapshot")))
+		It("deletes the auth token from the secrets manager", func() {
+			Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(1))
+			ctx, input, _ := mockSecretsManager.DeleteSecretWithContextArgsForCall(0)
+			Expect(ctx).To(Equal(ctx))
+			Expect(input.SecretId).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
+			Expect(*input.RecoveryWindowInDays).To(Equal(int64(30)))
 		})
 
-		It("handles errors during deleting the replication group", func() {
-			deleteErr := errors.New("some error")
-			mockElasticache.DeleteReplicationGroupWithContextReturnsOnCall(0, nil, deleteErr)
+		Context("when deleting the auth token fails", func() {
+			var deleteErr = errors.New("error in secrets manager")
+			BeforeEach(func() {
+				mockSecretsManager.DeleteSecretWithContextReturnsOnCall(0, nil, deleteErr)
+			})
 
-			deprovisionErr := provider.Deprovision(context.Background(), "foobar", providers.DeprovisionParameters{})
-			Expect(deprovisionErr).To(MatchError(deleteErr))
+			It("returns an error", func() {
+				Expect(deprovisionErr).To(MatchError(deleteErr))
+			})
 		})
 
+		Context("when the final snapshot name is set", func() {
+			BeforeEach(func() {
+				deprovisionParams = providers.DeprovisionParameters{
+					FinalSnapshotIdentifier: "test snapshot",
+				}
+			})
+
+			It("sets a parameter for creating a final snapshot", func() {
+				_, passedInput, _ := mockElasticache.DeleteReplicationGroupWithContextArgsForCall(0)
+				Expect(passedInput.FinalSnapshotIdentifier).To(Equal(aws.String("test snapshot")))
+			})
+		})
+
+		Context("if deleting the replication group fails", func() {
+			var deleteErr = errors.New("some error")
+
+			BeforeEach(func() {
+				mockElasticache.DeleteReplicationGroupWithContextReturnsOnCall(0, nil, deleteErr)
+			})
+
+			It("returns with the error", func() {
+				Expect(deprovisionErr).To(MatchError(deleteErr))
+			})
+
+			It("does not delete the auth token from the Secrets Manager", func() {
+				Expect(mockSecretsManager.DeleteSecretWithContextCallCount()).To(Equal(0))
+			})
+		})
 	})
 
 	Context("when getting the status of the cluster", func() {
@@ -488,54 +585,106 @@ var _ = Describe("Provider", func() {
 		})
 	})
 
-	Context("when creating credentials for an app", func() {
+	Describe("GenerateCredentials", func() {
 
-		Context("when cluster mode is enabled", func() {
-			It("should return with credentials", func() {
-				replicationGroupID := "cf-qwkec4pxhft6q"
+		var (
+			bindingID                       string
+			credentials                     *providers.Credentials
+			generateErr                     error
+			describeReplicationGroupsOutput *elasticache.DescribeReplicationGroupsOutput
+			describeReplicationGroupsErr    error
+			getSecretValueOutput            *secretsmanager.GetSecretValueOutput
+			getSecretValueErr               error
+		)
 
-				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
-					ReplicationGroups: []*elasticache.ReplicationGroup{
-						{
-							ConfigurationEndpoint: &elasticache.Endpoint{
-								Address: aws.String("test-host"),
-								Port:    aws.Int64(1234),
-							},
+		BeforeEach(func() {
+			bindingID = "test-binding"
+
+			describeReplicationGroupsOutput = &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{
+						ConfigurationEndpoint: &elasticache.Endpoint{
+							Address: aws.String("test-host"),
+							Port:    aws.Int64(1234),
 						},
 					},
-				}
-				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+				},
+			}
+			describeReplicationGroupsErr = nil
 
-				instanceID := "foobar"
-				bindingID := "test-binding"
-				ctx := context.Background()
+			getSecretValueOutput = &secretsmanager.GetSecretValueOutput{
+				SecretString: aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4="),
+			}
+			getSecretValueErr = nil
+		})
 
-				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
+		JustBeforeEach(func() {
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(
+				describeReplicationGroupsOutput,
+				describeReplicationGroupsErr,
+			)
 
-				Expect(err).ToNot(HaveOccurred())
-				Expect(credentials).To(Equal(&providers.Credentials{
-					Host:       "test-host",
-					Port:       1234,
-					Name:       "cf-qwkec4pxhft6q",
-					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
-					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
-					TLSEnabled: true,
-				}))
+			mockSecretsManager.GetSecretValueWithContextReturns(getSecretValueOutput, getSecretValueErr)
 
-				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
-				passedCtx, passedInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
-				Expect(passedCtx).To(Equal(ctx))
-				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
-					ReplicationGroupId: aws.String(replicationGroupID),
-				}))
+			credentials, generateErr = provider.GenerateCredentials(ctx, instanceID, bindingID)
+		})
+
+		It("should return no error", func() {
+			Expect(generateErr).ToNot(HaveOccurred())
+		})
+
+		It("gets the auth token from the Secrets Manager", func() {
+			Expect(mockSecretsManager.GetSecretValueWithContextCallCount()).To(Equal(1))
+			passedCtx, passedSecretsManagerInput, _ := mockSecretsManager.GetSecretValueWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(passedSecretsManagerInput).To(Equal(&secretsmanager.GetSecretValueInput{
+				SecretId: aws.String("elasticache-broker-test/foobar/auth-token"),
+			}))
+		})
+
+		Context("when getting the auth token fails with a general error", func() {
+			BeforeEach(func() {
+				getSecretValueOutput = nil
+				getSecretValueErr = errors.New("some error")
+			})
+			It("should return the error", func() {
+				Expect(generateErr).To(Equal(getSecretValueErr))
 			})
 		})
 
-		Context("when no configuration endpoint is provided (cluster mode is disabled)", func() {
-			It("should provide the primary endpoint in the credentials", func() {
-				replicationGroupID := "cf-qwkec4pxhft6q"
+		Context("when getting the auth token fails with an AWS error (e.g. failed request)", func() {
+			BeforeEach(func() {
+				getSecretValueOutput = nil
+				getSecretValueErr = awserr.New(secretsmanager.ErrCodeInternalServiceError, "x", nil)
+			})
+			It("should return the error", func() {
+				Expect(generateErr).To(Equal(getSecretValueErr))
+			})
+		})
 
-				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
+		It("should return with credentials", func() {
+			Expect(credentials).To(Equal(&providers.Credentials{
+				Host:       "test-host",
+				Port:       1234,
+				Name:       "cf-qwkec4pxhft6q",
+				Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
+				URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
+				TLSEnabled: true,
+			}))
+		})
+
+		It("calls DescribeReplicationGroups with the right parameters", func() {
+			Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
+			passedCtx, passedElasticacheInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
+			Expect(passedCtx).To(Equal(ctx))
+			Expect(passedElasticacheInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
+				ReplicationGroupId: aws.String(replicationGroupID),
+			}))
+		})
+
+		Context("when no configuration endpoint is provided (cluster mode is disabled)", func() {
+			BeforeEach(func() {
+				describeReplicationGroupsOutput = &elasticache.DescribeReplicationGroupsOutput{
 					ReplicationGroups: []*elasticache.ReplicationGroup{
 						{
 							NodeGroups: []*elasticache.NodeGroup{
@@ -549,15 +698,83 @@ var _ = Describe("Provider", func() {
 						},
 					},
 				}
-				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
+			})
 
-				instanceID := "foobar"
-				bindingID := "test-binding"
-				ctx := context.Background()
+			It("should provide the primary endpoint in the credentials", func() {
+				Expect(credentials).To(Equal(&providers.Credentials{
+					Host:       "test-host",
+					Port:       1234,
+					Name:       "cf-qwkec4pxhft6q",
+					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
+					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
+					TLSEnabled: true,
+				}))
+			})
+		})
 
-				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
+		Context("when no node groups are returned", func() {
+			BeforeEach(func() {
+				describeReplicationGroupsOutput = &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							NodeGroups: []*elasticache.NodeGroup{},
+						},
+					},
+				}
+			})
 
-				Expect(err).ToNot(HaveOccurred())
+			It("should return an error", func() {
+				Expect(generateErr).To(HaveOccurred())
+			})
+		})
+
+		Context("when no replication groups are returned", func() {
+			BeforeEach(func() {
+				describeReplicationGroupsOutput = &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{},
+				}
+			})
+
+			It("should return an error", func() {
+				Expect(generateErr).To(HaveOccurred())
+			})
+		})
+
+		Context("when no endpoints groups are returned", func() {
+			BeforeEach(func() {
+				describeReplicationGroupsOutput = &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{},
+					},
+				}
+			})
+
+			It("should return an error", func() {
+				Expect(generateErr).To(HaveOccurred())
+			})
+		})
+
+		Context("when the cluster does not exist", func() {
+			BeforeEach(func() {
+				describeReplicationGroupsOutput = nil
+				describeReplicationGroupsErr = awserr.New(elasticache.ErrCodeReplicationGroupNotFoundFault, "some message", nil)
+			})
+			It("should return an error", func() {
+				Expect(generateErr).To(HaveOccurred())
+			})
+		})
+
+		Context("when there is no auth token in Secrets Manager", func() {
+			BeforeEach(func() {
+				getSecretValueOutput = nil
+				getSecretValueErr = awserr.New(secretsmanager.ErrCodeResourceNotFoundException, "x", nil)
+			})
+
+			It("should succeed", func() {
+				Expect(generateErr).ToNot(HaveOccurred())
+			})
+
+			It("should migrate old-style auth tokens to AWS Secrets Manager", func() {
 				Expect(credentials).To(Equal(&providers.Credentials{
 					Host:       "test-host",
 					Port:       1234,
@@ -567,108 +784,25 @@ var _ = Describe("Provider", func() {
 					TLSEnabled: true,
 				}))
 
-				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
-				passedCtx, passedInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
+				Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
+				passedCtx, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
 				Expect(passedCtx).To(Equal(ctx))
-				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
-					ReplicationGroupId: aws.String(replicationGroupID),
-				}))
+				Expect(input.Name).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
+				Expect(input.SecretString).To(Equal(aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=")))
+				Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
 			})
 
-			It("should return error if zero node groups are returned", func() {
-				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
-					ReplicationGroups: []*elasticache.ReplicationGroup{
-						{
-							NodeGroups: []*elasticache.NodeGroup{},
-						},
-					},
-				}
-				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
-				_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
-				Expect(err).To(HaveOccurred())
+			Context("when creating the auth token fails", func() {
+				var createErr = errors.New("some error")
+
+				BeforeEach(func() {
+					mockSecretsManager.CreateSecretWithContextReturns(nil, createErr)
+				})
+
+				It("should return with the error", func() {
+					Expect(generateErr).To(Equal(createErr))
+				})
 			})
-		})
-
-		Context("when a configuration endpoint is provided (cluster mode is enabled)", func() {
-			It("should provide the configuration endpoint in the credentials", func() {
-				replicationGroupID := "cf-qwkec4pxhft6q"
-
-				awsOutput := &elasticache.DescribeReplicationGroupsOutput{
-					ReplicationGroups: []*elasticache.ReplicationGroup{
-						{
-							ConfigurationEndpoint: &elasticache.Endpoint{
-								Address: aws.String("configuration-endpoint"),
-								Port:    aws.Int64(11211),
-							},
-						},
-					},
-				}
-				mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
-
-				instanceID := "foobar"
-				bindingID := "test-binding"
-				ctx := context.Background()
-
-				credentials, err := provider.GenerateCredentials(ctx, instanceID, bindingID)
-
-				Expect(err).ToNot(HaveOccurred())
-				Expect(credentials).To(Equal(&providers.Credentials{
-					Host:       "configuration-endpoint",
-					Port:       11211,
-					Name:       "cf-qwkec4pxhft6q",
-					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
-					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@configuration-endpoint:11211",
-					TLSEnabled: true,
-				}))
-
-				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
-				passedCtx, passedInput, _ := mockElasticache.DescribeReplicationGroupsWithContextArgsForCall(0)
-				Expect(passedCtx).To(Equal(ctx))
-				Expect(passedInput).To(Equal(&elasticache.DescribeReplicationGroupsInput{
-					ReplicationGroupId: aws.String(replicationGroupID),
-				}))
-			})
-		})
-
-		It("should return error if zero node groups are returned", func() {
-			awsOutput := &elasticache.DescribeReplicationGroupsOutput{
-				ReplicationGroups: []*elasticache.ReplicationGroup{
-					{
-						NodeGroups: []*elasticache.NodeGroup{},
-					},
-				},
-			}
-			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
-			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("should return error if no replication groups are returned", func() {
-			awsOutput := &elasticache.DescribeReplicationGroupsOutput{
-				ReplicationGroups: []*elasticache.ReplicationGroup{},
-			}
-			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
-			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("should return error if no endpoints are returned", func() {
-			awsOutput := &elasticache.DescribeReplicationGroupsOutput{
-				ReplicationGroups: []*elasticache.ReplicationGroup{
-					{},
-				},
-			}
-			mockElasticache.DescribeReplicationGroupsWithContextReturns(awsOutput, nil)
-			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("should return error if cluster does not exist", func() {
-			describeErr := awserr.New(elasticache.ErrCodeReplicationGroupNotFoundFault, "some message", nil)
-			mockElasticache.DescribeReplicationGroupsWithContextReturns(nil, describeErr)
-
-			_, err := provider.GenerateCredentials(context.Background(), "foobar", "test-binding")
-			Expect(err).To(HaveOccurred())
 		})
 
 	})

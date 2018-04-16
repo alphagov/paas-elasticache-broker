@@ -31,11 +31,13 @@ type Config struct {
 	Password             string                    `json:"password"`
 	Region               string                    `json:"region"`
 	BrokerName           string                    `json:"broker_name"`
-	AuthTokenSeed        string                    `json:"auth_token_seed"`
+	AuthTokenSeed        string                    `json:"auth_token_seed"` // TODO: remove after all auth tokens were migrated to the Secrets Manager
 	CacheSubnetGroupName string                    `json:"cache_subnet_group_name"`
 	VpcSecurityGroupIds  []string                  `json:"vpc_security_group_ids"`
 	Catalog              brokerapi.CatalogResponse `json:"catalog"`
 	PlanConfigs          map[string]PlanConfig     `json:"plan_configs"`
+	KmsKeyID             string                    `json:"kms_key_id"`
+	SecretsManagerPath   string                    `json:"secrets_manager_path"`
 }
 
 func (c Config) GetPlanConfig(planID string) (PlanConfig, error) {
@@ -104,6 +106,14 @@ func (c Config) Validate() error {
 
 	if len(c.VpcSecurityGroupIds) < 1 {
 		return errors.New("Must provide at least one VPC security group ID")
+	}
+
+	if c.KmsKeyID == "" {
+		return errors.New("Must provide a non-empty kms_key_id")
+	}
+
+	if c.SecretsManagerPath == "" {
+		return errors.New("Must provide a non-empty secrets_manager_path")
 	}
 
 	for _, s := range c.Catalog.Services {

@@ -15,34 +15,52 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
 var _ providers.Provider = &RedisProvider{}
 
+const PasswordLength = 32
+
 // RedisProvider is the Redis broker provider
 type RedisProvider struct {
-	aws           providers.ElastiCache
-	awsAccountID  string
-	awsPartition  string
-	awsRegion     string
-	logger        lager.Logger
-	authTokenSeed string
+	elastiCache        providers.ElastiCache
+	secretsManager     providers.SecretsManager
+	awsAccountID       string
+	awsPartition       string
+	awsRegion          string
+	logger             lager.Logger
+	authTokenSeed      string // TODO: remove after all auth tokens were migrated to the Secrets Manager
+	kmsKeyID           string
+	secretsManagerPath string
 }
 
 // NewProvider creates a new Redis provider
-func NewProvider(elasticache providers.ElastiCache, awsAccountID, awsPartition, awsRegion string, logger lager.Logger, authTokenSeed string) *RedisProvider {
+func NewProvider(
+	elastiCache providers.ElastiCache,
+	secretsManager providers.SecretsManager,
+	awsAccountID, awsPartition,
+	awsRegion string,
+	logger lager.Logger,
+	authTokenSeed string,
+	kmsKeyID string,
+	secretsManagerPath string,
+) *RedisProvider {
 	return &RedisProvider{
-		aws:           elasticache,
-		awsAccountID:  awsAccountID,
-		awsPartition:  awsPartition,
-		awsRegion:     awsRegion,
-		logger:        logger,
-		authTokenSeed: authTokenSeed,
+		elastiCache:        elastiCache,
+		secretsManager:     secretsManager,
+		awsAccountID:       awsAccountID,
+		awsPartition:       awsPartition,
+		awsRegion:          awsRegion,
+		logger:             logger,
+		authTokenSeed:      authTokenSeed,
+		kmsKeyID:           kmsKeyID,
+		secretsManagerPath: strings.TrimRight(secretsManagerPath, "/"),
 	}
 }
 
 func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicationGroupID string, params providers.ProvisionParameters) error {
-	_, err := p.aws.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
+	_, err := p.elastiCache.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
 		CacheParameterGroupFamily: aws.String("redis3.2"),
 		CacheParameterGroupName:   aws.String(replicationGroupID),
 		Description:               aws.String("Created by Cloud Foundry"),
@@ -74,7 +92,7 @@ func (p *RedisProvider) modifyCacheParameterGroup(ctx context.Context, replicati
 		})
 	}
 
-	_, err := p.aws.ModifyCacheParameterGroupWithContext(ctx, &elasticache.ModifyCacheParameterGroupInput{
+	_, err := p.elastiCache.ModifyCacheParameterGroupWithContext(ctx, &elasticache.ModifyCacheParameterGroupInput{
 		ParameterNameValues:     pgParams,
 		CacheParameterGroupName: aws.String(replicationGroupID),
 	})
@@ -83,7 +101,7 @@ func (p *RedisProvider) modifyCacheParameterGroup(ctx context.Context, replicati
 
 func (p *RedisProvider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
-	_, err := p.aws.DeleteCacheParameterGroupWithContext(ctx, &elasticache.DeleteCacheParameterGroupInput{
+	_, err := p.elastiCache.DeleteCacheParameterGroupWithContext(ctx, &elasticache.DeleteCacheParameterGroupInput{
 		CacheParameterGroupName: aws.String(replicationGroupID),
 	})
 	if err != nil {
@@ -112,11 +130,17 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 
 	cacheParameterGroupName := replicationGroupID
 
+	authToken := GenerateAuthToken()
+	err = p.CreateAuthTokenSecret(ctx, instanceID, authToken)
+	if err != nil {
+		return fmt.Errorf("failed to create auth token: %s", err.Error())
+	}
+
 	input := &elasticache.CreateReplicationGroupInput{
 		Tags: []*elasticache.Tag{},
 		AtRestEncryptionEnabled:     aws.Bool(true),
 		TransitEncryptionEnabled:    aws.Bool(true),
-		AuthToken:                   aws.String(GenerateAuthToken(p.authTokenSeed, instanceID)),
+		AuthToken:                   aws.String(authToken),
 		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
 		CacheNodeType:               aws.String(params.InstanceType),
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
@@ -144,8 +168,18 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		})
 	}
 
-	_, err = p.aws.CreateReplicationGroupWithContext(ctx, input)
-	return err
+	_, createErr := p.elastiCache.CreateReplicationGroupWithContext(ctx, input)
+	if createErr != nil {
+		err := p.DeleteCacheParameterGroup(ctx, instanceID)
+		if err != nil {
+			p.logger.Error("delete-cache-parameter-group", err)
+		}
+		err = p.DeleteAuthTokenSecret(ctx, instanceID, 7)
+		if err != nil {
+			p.logger.Error("delete-auth-token-secret", err)
+		}
+	}
+	return createErr
 }
 
 // Deprovision deletes the replication group
@@ -159,8 +193,17 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 		input.SetFinalSnapshotIdentifier(params.FinalSnapshotIdentifier)
 	}
 
-	_, err := p.aws.DeleteReplicationGroupWithContext(ctx, input)
-	return err
+	_, err := p.elastiCache.DeleteReplicationGroupWithContext(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	err = p.DeleteAuthTokenSecret(ctx, instanceID, 30)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasticache.ReplicationGroup) string {
@@ -237,7 +280,7 @@ func (p *RedisProvider) GetState(ctx context.Context, instanceID string) (provid
 }
 
 func (p *RedisProvider) describeReplicationGroup(ctx context.Context, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
-	output, err := p.aws.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
+	output, err := p.elastiCache.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
 		ReplicationGroupId: aws.String(replicationGroupID),
 	})
 
@@ -253,7 +296,7 @@ func (p *RedisProvider) describeReplicationGroup(ctx context.Context, replicatio
 }
 
 func (p *RedisProvider) describeCacheCluster(ctx context.Context, cacheClusterID string) (*elasticache.CacheCluster, error) {
-	output, err := p.aws.DescribeCacheClustersWithContext(ctx, &elasticache.DescribeCacheClustersInput{
+	output, err := p.elastiCache.DescribeCacheClustersWithContext(ctx, &elasticache.DescribeCacheClustersInput{
 		CacheClusterId: aws.String(cacheClusterID),
 	})
 
@@ -269,7 +312,7 @@ func (p *RedisProvider) describeCacheCluster(ctx context.Context, cacheClusterID
 }
 
 func (p *RedisProvider) describeCacheParameters(ctx context.Context, cacheParameterGroupName string) ([]*elasticache.Parameter, error) {
-	output, err := p.aws.DescribeCacheParametersWithContext(ctx, &elasticache.DescribeCacheParametersInput{
+	output, err := p.elastiCache.DescribeCacheParametersWithContext(ctx, &elasticache.DescribeCacheParametersInput{
 		CacheParameterGroupName: aws.String(cacheParameterGroupName),
 	})
 
@@ -308,17 +351,40 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 		port = *replicationGroup.NodeGroups[0].PrimaryEndpoint.Port
 	}
 
-	password := GenerateAuthToken(p.authTokenSeed, instanceID)
+	authTokenSecret, err := p.secretsManager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+		SecretId: aws.String(p.getAuthTokenPath(instanceID)),
+	})
+	var authToken string
+	if err == nil {
+		authToken = aws.StringValue(authTokenSecret.SecretString)
+	} else {
+		awsErr, ok := err.(awserr.Error)
+		if !ok {
+			return nil, err
+		}
+		if awsErr.Code() != secretsmanager.ErrCodeResourceNotFoundException {
+			return nil, err
+		}
+
+		// For existing instance we save the old auth token in the secrets manager
+		// TODO: replace this code with returning an error if all auth tokens were saved in the store
+		authToken = DeprecatedGenerateAuthToken(p.authTokenSeed, instanceID)
+		err = p.CreateAuthTokenSecret(ctx, instanceID, authToken)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	uri := &url.URL{
 		Scheme: "rediss",
 		Host:   fmt.Sprintf("%s:%d", host, port),
-		User:   url.UserPassword("x", password),
+		User:   url.UserPassword("x", authToken),
 	}
 	return &providers.Credentials{
 		Host:       host,
 		Port:       port,
 		Name:       replicationGroupID,
-		Password:   password,
+		Password:   authToken,
 		TLSEnabled: true,
 		URI:        uri.String(),
 	}, nil
@@ -339,7 +405,7 @@ func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([
 		ReplicationGroupId: aws.String(replicationGroupID),
 	}
 	snapshots := []*elasticache.Snapshot{}
-	err := p.aws.DescribeSnapshotsPagesWithContext(ctx, describeSnapshotsParams, func(page *elasticache.DescribeSnapshotsOutput, lastPage bool) bool {
+	err := p.elastiCache.DescribeSnapshotsPagesWithContext(ctx, describeSnapshotsParams, func(page *elasticache.DescribeSnapshotsOutput, lastPage bool) bool {
 		snapshots = append(snapshots, page.Snapshots...)
 		return true
 	})
@@ -354,7 +420,7 @@ func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([
 			snapshot.NodeSnapshots[0].SnapshotCreateTime == nil {
 			return nil, fmt.Errorf("Invalid response from AWS: Missing values for snapshot for elasticache cluster %s", instanceID)
 		}
-		tagList, err := p.aws.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
+		tagList, err := p.elastiCache.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
 			ResourceName: aws.String(p.snapshotARN(*snapshot.SnapshotName)),
 		})
 		if err != nil {
@@ -371,6 +437,29 @@ func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([
 
 func (p *RedisProvider) snapshotARN(snapshotID string) string {
 	return fmt.Sprintf("arn:%s:elasticache:%s:%s:snapshot:%s", p.awsPartition, p.awsRegion, p.awsAccountID, snapshotID)
+}
+
+func (p *RedisProvider) CreateAuthTokenSecret(ctx context.Context, instanceID string, authToken string) error {
+	name := p.getAuthTokenPath(instanceID)
+	_, err := p.secretsManager.CreateSecretWithContext(ctx, &secretsmanager.CreateSecretInput{
+		Name:         aws.String(name),
+		SecretString: aws.String(authToken),
+		KmsKeyId:     aws.String(p.kmsKeyID),
+	})
+	return err
+}
+
+func (p *RedisProvider) DeleteAuthTokenSecret(ctx context.Context, instanceID string, recoveryWindowInDays int) error {
+	name := p.getAuthTokenPath(instanceID)
+	_, err := p.secretsManager.DeleteSecretWithContext(ctx, &secretsmanager.DeleteSecretInput{
+		SecretId:             aws.String(name),
+		RecoveryWindowInDays: aws.Int64(int64(recoveryWindowInDays)),
+	})
+	return err
+}
+
+func (p *RedisProvider) getAuthTokenPath(instanceID string) string {
+	return fmt.Sprintf("%s/%s/auth-token", p.secretsManagerPath, instanceID)
 }
 
 func tagsValues(elasticacheTags []*elasticache.Tag) map[string]string {
@@ -394,8 +483,14 @@ func GenerateReplicationGroupName(instanceID string) string {
 	return strings.ToLower("cf-" + encoder.EncodeToString(out))
 }
 
-// GenerateAuthToken generates a password based on the given seed and the service instance id
-func GenerateAuthToken(seed string, instanceID string) string {
+// Generates a password based on the given seed and the service instance id
+// FIXME: Remove once existing instances have had their auth tokens migrated to AWS Secrets Manager
+func DeprecatedGenerateAuthToken(seed string, instanceID string) string {
 	sha := sha256.Sum256([]byte(seed + instanceID))
 	return base64.URLEncoding.EncodeToString(sha[:])
+}
+
+// GenerateAuthToken generates an alphanumeric cryptographically-secure password
+func GenerateAuthToken() string {
+	return RandomAlphaNum(PasswordLength)
 }
