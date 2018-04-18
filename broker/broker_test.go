@@ -23,7 +23,6 @@ var _ = Describe("Broker", func() {
 
 	BeforeEach(func() {
 		validConfig = broker.Config{
-			AuthTokenSeed:        "super-secret",
 			BrokerName:           "Broker McBrokerface",
 			VpcSecurityGroupIds:  []string{"vpc_security_group_id"},
 			CacheSubnetGroupName: "cache-subnet-group-name",

@@ -27,7 +27,6 @@ var _ = Describe("Provider", func() {
 		mockElasticache    *mocks.FakeElastiCache
 		mockSecretsManager *mocks.FakeSecretsManager
 		provider           *RedisProvider
-		AuthTokenSeed      = "super-secret"
 		kmsKeyID           = "my-kms-key"
 		secretsManagerPath string
 		ctx                context.Context
@@ -52,7 +51,6 @@ var _ = Describe("Provider", func() {
 			"aws",
 			"eu-west-1",
 			lager.NewLogger("logger"),
-			AuthTokenSeed,
 			kmsKeyID,
 			secretsManagerPath,
 		)
@@ -770,41 +768,10 @@ var _ = Describe("Provider", func() {
 				getSecretValueErr = awserr.New(secretsmanager.ErrCodeResourceNotFoundException, "x", nil)
 			})
 
-			It("should succeed", func() {
-				Expect(generateErr).ToNot(HaveOccurred())
-			})
-
-			It("should migrate old-style auth tokens to AWS Secrets Manager", func() {
-				Expect(credentials).To(Equal(&providers.Credentials{
-					Host:       "test-host",
-					Port:       1234,
-					Name:       "cf-qwkec4pxhft6q",
-					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
-					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
-					TLSEnabled: true,
-				}))
-
-				Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
-				passedCtx, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
-				Expect(passedCtx).To(Equal(ctx))
-				Expect(input.Name).To(Equal(aws.String("elasticache-broker-test/foobar/auth-token")))
-				Expect(input.SecretString).To(Equal(aws.String("Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=")))
-				Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
-			})
-
-			Context("when creating the auth token fails", func() {
-				var createErr = errors.New("some error")
-
-				BeforeEach(func() {
-					mockSecretsManager.CreateSecretWithContextReturns(nil, createErr)
-				})
-
-				It("should return with the error", func() {
-					Expect(generateErr).To(Equal(createErr))
-				})
+			It("should return with the error", func() {
+				Expect(generateErr).To(MatchError(getSecretValueErr))
 			})
 		})
-
 	})
 
 	Context("when deleting a parameter group", func() {

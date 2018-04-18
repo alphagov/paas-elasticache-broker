@@ -64,7 +64,7 @@ func newBroker(config broker.Config, logger lager.Logger) (*broker.Broker, error
 
 	provider := redis.NewProvider(
 		elastiCache, secretsManager, awsAccountID, awsPartition, awsRegion, logger,
-		config.AuthTokenSeed, config.KmsKeyID, config.SecretsManagerPath,
+		config.KmsKeyID, config.SecretsManagerPath,
 	)
 
 	return broker.New(config, provider, logger), nil

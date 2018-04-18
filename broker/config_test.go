@@ -18,7 +18,6 @@ var _ = Describe("Config", func() {
 			Password:             "password",
 			Region:               "region",
 			BrokerName:           "broker_name",
-			AuthTokenSeed:        "auth_token_seed",
 			CacheSubnetGroupName: "cache_subnet_group_name",
 			VpcSecurityGroupIds:  []string{"vpc_security_group_id"},
 			Catalog: brokerapi.CatalogResponse{
@@ -71,11 +70,6 @@ var _ = Describe("Config", func() {
 
 		It("requires a broker name", func() {
 			config.BrokerName = ""
-			Expect(config.Validate()).NotTo(Succeed())
-		})
-
-		It("requires an auth token seed", func() {
-			config.AuthTokenSeed = ""
 			Expect(config.Validate()).NotTo(Succeed())
 		})
 

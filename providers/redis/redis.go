@@ -2,9 +2,7 @@ package redis
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/base32"
-	"encoding/base64"
 	"fmt"
 	"hash/fnv"
 	"net/url"
@@ -30,7 +28,6 @@ type RedisProvider struct {
 	awsPartition       string
 	awsRegion          string
 	logger             lager.Logger
-	authTokenSeed      string // TODO: remove after all auth tokens were migrated to the Secrets Manager
 	kmsKeyID           string
 	secretsManagerPath string
 }
@@ -42,7 +39,6 @@ func NewProvider(
 	awsAccountID, awsPartition,
 	awsRegion string,
 	logger lager.Logger,
-	authTokenSeed string,
 	kmsKeyID string,
 	secretsManagerPath string,
 ) *RedisProvider {
@@ -53,7 +49,6 @@ func NewProvider(
 		awsPartition:       awsPartition,
 		awsRegion:          awsRegion,
 		logger:             logger,
-		authTokenSeed:      authTokenSeed,
 		kmsKeyID:           kmsKeyID,
 		secretsManagerPath: strings.TrimRight(secretsManagerPath, "/"),
 	}
@@ -354,26 +349,10 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 	authTokenSecret, err := p.secretsManager.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(p.getAuthTokenPath(instanceID)),
 	})
-	var authToken string
-	if err == nil {
-		authToken = aws.StringValue(authTokenSecret.SecretString)
-	} else {
-		awsErr, ok := err.(awserr.Error)
-		if !ok {
-			return nil, err
-		}
-		if awsErr.Code() != secretsmanager.ErrCodeResourceNotFoundException {
-			return nil, err
-		}
-
-		// For existing instance we save the old auth token in the secrets manager
-		// TODO: replace this code with returning an error if all auth tokens were saved in the store
-		authToken = DeprecatedGenerateAuthToken(p.authTokenSeed, instanceID)
-		err = p.CreateAuthTokenSecret(ctx, instanceID, authToken)
-		if err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
+	authToken := aws.StringValue(authTokenSecret.SecretString)
 
 	uri := &url.URL{
 		Scheme: "rediss",
@@ -481,13 +460,6 @@ func GenerateReplicationGroupName(instanceID string) string {
 	out := hash.Sum([]byte{})
 	encoder := base32.StdEncoding.WithPadding(base32.NoPadding)
 	return strings.ToLower("cf-" + encoder.EncodeToString(out))
-}
-
-// Generates a password based on the given seed and the service instance id
-// FIXME: Remove once existing instances have had their auth tokens migrated to AWS Secrets Manager
-func DeprecatedGenerateAuthToken(seed string, instanceID string) string {
-	sha := sha256.Sum256([]byte(seed + instanceID))
-	return base64.URLEncoding.EncodeToString(sha[:])
 }
 
 // GenerateAuthToken generates an alphanumeric cryptographically-secure password
