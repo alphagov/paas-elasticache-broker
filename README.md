@@ -135,6 +135,17 @@ The password will be the same for all bindings as the ElastiCache Redis replicat
       "Resource": [
         "*"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:CreateSecret",
+        "secretsmanager:DeleteSecret"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:<region>:<account-id>:secret:<path>/*"
+      ]
     }
   ]
 }
