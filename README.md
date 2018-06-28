@@ -12,7 +12,7 @@ A CloudFoundry service broker for AWS Elasticache services. Currently only Redis
   This group must have at least one subnet for your Redis instances to use.
 - Create an EC2 security group with TCP ingress for port 6379 with the
   CIDR of any subnet in the subnet group configured above.
-- Create an IAM role or user with necessary permissions; see [example policy](#example-iam-policy)
+- Create an IAM role or user with necessary permissions; see [required IAM permissions](#required-iam-permissions) below
 - Copy the example config from the blackbox tests
   ```
   cd $GOPATH/src/github.com/alphagov/paas-elasticache-broker
@@ -116,26 +116,66 @@ Using TLS is mandatory in the clients.
 
 The password will be the same for all bindings as the ElastiCache Redis replication group has only one password which can't be changed after the instance is created. This also means we are not able to revoke the access when an application is unbound.
 
-## Example IAM policy
+## Required IAM permissions
 
-```json
+The broker needs a number of AWS permissions to operate:
+
+### Elasticache
+
+It needs full access to elasticache. The easiest way achieve this is to use the
+[AWS-provided AmazonElastiCacheFullAccess policy][AmazonElastiCacheFullAccess_policy]
+(arn: `arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess`) which also allows
+creating the necessary service-linked role.
+
+[AmazonElastiCacheFullAccess_policy]: https://docs.aws.amazon.com/AmazonElastiCache/latest/mem-ug/IAM.IdentityBasedPolicies.html#IAM.IdentityBasedPolicies.PredefinedPolicies
+
+### Secrets Manager
+
+The broker uses [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)
+to store the generated passwords for instances. It therefore needs the following permissions:
+
+```
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
       "Action": [
-        "elasticache:CreateReplicationGroup",
-        "elasticache:DescribeReplicationGroups",
-        "elasticache:DeleteReplicationGroup",
-        "elasticache:CreateCacheParameterGroup",
-        "elasticache:ModifyCacheParameterGroup",
-        "elasticache:DeleteCacheParameterGroup"
+        "secretsmanager:CreateSecret",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:List*"
       ],
       "Resource": [
-        "*"
+        "arn:aws:secretsmanager:*:*:secret:<SECRETS_MANAGER_PATH>/*"
       ]
     }
   ]
 }
 ```
+
+Where `<SECRETS_MANAGER_PATH>` matches the path given in the config file.
+
+It also needs access to the KMS key used with Secrets Manager:
+
+```
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kms:GenerateDataKey",
+        "kms:Encrypt",
+        "kms:Decrypt"
+      ],
+      "Resource": [
+        "<KMS_KEY_ARN>"
+      ]
+    }
+  ]
+}
+```
+
+Where `<KMS_KEY_ARN>` is the arn of the key provided in the config file.
