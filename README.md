@@ -35,7 +35,7 @@ AWS_VPC_ID=vpc-deadbeef AWS_SUBNET_CIDR_BLOCK=10.0.16.0/24 \
 
 You have to pass in a configuration JSON file with the following format:
 
-```
+```json
 {
   "broker_name": "Broker name",
   "username": "Broker http auth username",
@@ -53,7 +53,7 @@ You have to pass in a configuration JSON file with the following format:
 
 Broker catalog example:
 
-```
+```json
 {
   "services": [
     {
@@ -77,7 +77,7 @@ Broker catalog example:
 
 Plan config example:
 
-```
+```json
 {
   "94767b71-2b9c-4960-a4f8-77b81a96f7e0": {
     "instance_type": "cache.t2.micro",
@@ -102,7 +102,7 @@ The broker catalog structs can be found in the [pivotal-cf/brokerapi](https://gi
 
 When binding a service instance to an application the *Bind* call returns the following client credentials:
 
-```
+```json
 {
   "host": "redis-host",
   "port": 6379,
