@@ -9,4 +9,4 @@ integration: $(GOPATH)/bin/ginkgo
 	ginkgo -v -r ci/blackbox
 
 $(GOPATH)/bin/ginkgo:
-	cd vendor/github.com/onsi/ginkgo/ginkgo && go install .
+	go get -u github.com/onsi/ginkgo/ginkgo
