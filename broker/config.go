@@ -17,12 +17,15 @@ var (
 type BindParameters struct{}
 
 type PlanConfig struct {
-	InstanceType             string            `json:"instance_type"`
-	ReplicasPerNodeGroup     int64             `json:"replicas_per_node_group"`
-	ShardCount               int64             `json:"shard_count"`
-	SnapshotRetentionLimit   int64             `json:"snapshot_retention_limit"`
-	AutomaticFailoverEnabled bool              `json:"automatic_failover_enabled"`
-	Parameters               map[string]string `json:"parameters"`
+	InstanceType              string            `json:"instance_type"`
+	ReplicasPerNodeGroup      int64             `json:"replicas_per_node_group"`
+	ShardCount                int64             `json:"shard_count"`
+	SnapshotRetentionLimit    int64             `json:"snapshot_retention_limit"`
+	AutomaticFailoverEnabled  bool              `json:"automatic_failover_enabled"`
+	Parameters                map[string]string `json:"parameters"`
+	Engine                    string            `json:"engine"`
+	EngineVersion             string            `json:"engine_version"`
+	CacheParameterGroupFamily string            `json:"cache_parameter_group_family"`
 }
 
 type Config struct {
