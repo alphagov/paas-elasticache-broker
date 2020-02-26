@@ -130,6 +130,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	provisionParams := providers.ProvisionParameters{
 		InstanceType:               planConfig.InstanceType,
 		CacheParameterGroupName:    "default.redis3.2",
+		CacheParameterGroupFamily:  planConfig.CacheParameterGroupFamily,
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
 		CacheSubnetGroupName:       b.config.CacheSubnetGroupName,
 		PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
@@ -148,6 +149,8 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 			"space-id":        details.SpaceGUID,
 			"instance-id":     instanceID,
 		},
+		Engine: planConfig.Engine,
+		EngineVersion: planConfig.EngineVersion,
 	}
 
 	err = b.provider.Provision(providerCtx, instanceID, provisionParams)
