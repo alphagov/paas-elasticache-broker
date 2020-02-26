@@ -128,7 +128,6 @@ var _ = Describe("Broker", func() {
 
 			expectedParams := providers.ProvisionParameters{
 				InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
-				CacheParameterGroupName:    "default.redis3.2",
 				CacheParameterGroupFamily:  "default.redis4.0",
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 				CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
@@ -321,7 +320,6 @@ var _ = Describe("Broker", func() {
 
 				expectedParams := providers.ProvisionParameters{
 					InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
-					CacheParameterGroupName:    "default.redis3.2",
 					CacheParameterGroupFamily:   "default.redis4.0",
 					SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 					CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,

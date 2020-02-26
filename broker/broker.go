@@ -129,7 +129,6 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 
 	provisionParams := providers.ProvisionParameters{
 		InstanceType:               planConfig.InstanceType,
-		CacheParameterGroupName:    "default.redis3.2",
 		CacheParameterGroupFamily:  planConfig.CacheParameterGroupFamily,
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
 		CacheSubnetGroupName:       b.config.CacheSubnetGroupName,

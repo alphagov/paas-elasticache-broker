@@ -65,7 +65,6 @@ var _ = Describe("Provider", func() {
 		BeforeEach(func() {
 			provisionParams = providers.ProvisionParameters{
 				InstanceType:               "test instance type",
-				CacheParameterGroupName:    replicationGroupID,
 				CacheParameterGroupFamily: "redis4.0",
 				SecurityGroupIds:           []string{"test sg1"},
 				CacheSubnetGroupName:       "test subnet group",

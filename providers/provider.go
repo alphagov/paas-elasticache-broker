@@ -21,7 +21,6 @@ const (
 
 type ProvisionParameters struct {
 	InstanceType               string
-	CacheParameterGroupName    string
 	CacheParameterGroupFamily  string
 	SecurityGroupIds           []string
 	CacheSubnetGroupName       string
