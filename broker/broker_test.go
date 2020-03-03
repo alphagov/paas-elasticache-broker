@@ -49,6 +49,9 @@ var _ = Describe("Broker", func() {
 						"reserved-memory":  "0",
 					},
 					AutomaticFailoverEnabled: true,
+					Engine: "redis",
+					EngineVersion: "4.0.10",
+					CacheParameterGroupFamily: "default.redis4.0",
 				},
 			},
 		}
@@ -125,7 +128,7 @@ var _ = Describe("Broker", func() {
 
 			expectedParams := providers.ProvisionParameters{
 				InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
-				CacheParameterGroupName:    "default.redis3.2",
+				CacheParameterGroupFamily:  "default.redis4.0",
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 				CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
 				PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
@@ -143,10 +146,12 @@ var _ = Describe("Broker", func() {
 					"space-id":        validProvisionDetails.SpaceGUID,
 					"instance-id":     "instanceid",
 				},
+				Engine: "redis",
+				EngineVersion: "4.0.10",
 			}
 
 			Expect(instanceID).To(Equal("instanceid"))
-			Expect(params).To(Equal(expectedParams))
+			Expect(params).To(BeEquivalentTo(expectedParams))
 		})
 
 		It("passes the user provided parameters", func() {
@@ -315,7 +320,7 @@ var _ = Describe("Broker", func() {
 
 				expectedParams := providers.ProvisionParameters{
 					InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
-					CacheParameterGroupName:    "default.redis3.2",
+					CacheParameterGroupFamily:   "default.redis4.0",
 					SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 					CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
 					PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
@@ -334,6 +339,8 @@ var _ = Describe("Broker", func() {
 						"space-id":        validProvisionDetails.SpaceGUID,
 						"instance-id":     "instanceid",
 					},
+					Engine: "redis",
+					EngineVersion: "4.0.10",
 				}
 
 				Expect(instanceID).To(Equal("instanceid"))

@@ -39,7 +39,10 @@
 				"cluster-enabled": "yes",
 				"maxmemory-policy": "volatile-lru",
 				"reserved-memory": "0"
-			}
+			},
+			"engine": "redis",
+			"engine_version": "3.2.6",
+			"cache_parameter_group_family": "redis3.2"
 		}
 	}
 }

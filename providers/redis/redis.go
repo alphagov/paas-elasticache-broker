@@ -56,7 +56,7 @@ func NewProvider(
 
 func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicationGroupID string, params providers.ProvisionParameters) error {
 	_, err := p.elastiCache.CreateCacheParameterGroupWithContext(ctx, &elasticache.CreateCacheParameterGroupInput{
-		CacheParameterGroupFamily: aws.String("redis3.2"),
+		CacheParameterGroupFamily: aws.String(params.CacheParameterGroupFamily),
 		CacheParameterGroupName:   aws.String(replicationGroupID),
 		Description:               aws.String("Created by Cloud Foundry"),
 	})
@@ -141,8 +141,8 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
 		SecurityGroupIds:            aws.StringSlice(params.SecurityGroupIds),
 		CacheSubnetGroupName:        aws.String(params.CacheSubnetGroupName),
-		Engine:                      aws.String("redis"),
-		EngineVersion:               aws.String("3.2.6"),
+		Engine:                      aws.String(params.Engine),
+		EngineVersion:               aws.String(params.EngineVersion),
 		PreferredMaintenanceWindow:  aws.String(params.PreferredMaintenanceWindow),
 		ReplicationGroupDescription: aws.String(params.Description),
 		ReplicationGroupId:          aws.String(replicationGroupID),

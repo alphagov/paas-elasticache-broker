@@ -21,7 +21,7 @@ const (
 
 type ProvisionParameters struct {
 	InstanceType               string
-	CacheParameterGroupName    string
+	CacheParameterGroupFamily  string
 	SecurityGroupIds           []string
 	CacheSubnetGroupName       string
 	PreferredMaintenanceWindow string
@@ -33,6 +33,8 @@ type ProvisionParameters struct {
 	Description                string
 	Parameters                 map[string]string
 	Tags                       map[string]string
+	Engine                     string
+	EngineVersion              string
 }
 
 type DeprovisionParameters struct {

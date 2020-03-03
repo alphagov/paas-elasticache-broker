@@ -65,7 +65,7 @@ var _ = Describe("Provider", func() {
 		BeforeEach(func() {
 			provisionParams = providers.ProvisionParameters{
 				InstanceType:               "test instance type",
-				CacheParameterGroupName:    replicationGroupID,
+				CacheParameterGroupFamily: "redis4.0",
 				SecurityGroupIds:           []string{"test sg1"},
 				CacheSubnetGroupName:       "test subnet group",
 				PreferredMaintenanceWindow: "test maintenance window",
@@ -79,6 +79,8 @@ var _ = Describe("Provider", func() {
 					"key2": "value2",
 				},
 				Tags: map[string]string{},
+				Engine: "redis",
+				EngineVersion: "4.0.10",
 			}
 		})
 
@@ -95,7 +97,7 @@ var _ = Describe("Provider", func() {
 			receivedCtx, receivedInput, _ := mockElasticache.CreateCacheParameterGroupWithContextArgsForCall(0)
 			Expect(receivedCtx).To(Equal(ctx))
 			Expect(receivedInput).To(Equal(&elasticache.CreateCacheParameterGroupInput{
-				CacheParameterGroupFamily: aws.String("redis3.2"),
+				CacheParameterGroupFamily: aws.String("redis4.0"),
 				CacheParameterGroupName:   aws.String(replicationGroupID),
 				Description:               aws.String("Created by Cloud Foundry"),
 			}))
@@ -210,7 +212,7 @@ var _ = Describe("Provider", func() {
 				SecurityGroupIds:            aws.StringSlice([]string{"test sg1"}),
 				CacheSubnetGroupName:        aws.String("test subnet group"),
 				Engine:                      aws.String("redis"),
-				EngineVersion:               aws.String("3.2.6"),
+				EngineVersion:               aws.String("4.0.10"),
 				PreferredMaintenanceWindow:  aws.String("test maintenance window"),
 				ReplicationGroupDescription: aws.String("test desc"),
 				ReplicationGroupId:          aws.String(replicationGroupID),
