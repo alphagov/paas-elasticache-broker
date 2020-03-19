@@ -604,7 +604,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			Expect(b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)).
+			Expect(b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})).
 				To(Equal(brokerapi.LastOperation{
 					State:       brokerapi.Succeeded,
 					Description: "i love brokers",
@@ -616,8 +616,9 @@ var _ = Describe("Broker", func() {
 			logger := lager.NewLogger("logger")
 			b := broker.New(validConfig, fakeProvider, logger)
 
-			b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)
+			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 
+			Expect(err).NotTo(HaveOccurred())
 			Expect(fakeProvider.GetStateCallCount()).To(Equal(1))
 			receivedContext, _ := fakeProvider.GetStateArgsForCall(0)
 
@@ -632,7 +633,7 @@ var _ = Describe("Broker", func() {
 			logger.RegisterSink(lager.NewWriterSink(log, lager.DEBUG))
 			b := broker.New(validConfig, &mocks.FakeProvider{}, logger)
 
-			b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)
+			b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 
 			Expect(log).To(gbytes.Say("last-operation"))
 		})
@@ -642,7 +643,7 @@ var _ = Describe("Broker", func() {
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 			fakeProvider.GetStateReturns("", "", errors.New("foobar"))
 
-			_, err := b.LastOperation(context.Background(), "myinstance", `{"action": "provisioning"}`)
+			_, err := b.LastOperation(context.Background(), "myinstance", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 
 			Expect(err).To(MatchError("error getting state for myinstance: foobar"))
 		})
@@ -652,7 +653,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			_, err := b.LastOperation(context.Background(), "instanceid", "")
+			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: ""})
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -661,7 +662,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			_, err := b.LastOperation(context.Background(), "instanceid", "I am not JSON")
+			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: "I am not JSON"})
 			Expect(err).To(MatchError("invalid operation data: I am not JSON"))
 		})
 
@@ -670,7 +671,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			_, err := b.LastOperation(context.Background(), "instanceid", "{}")
+			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: "{}"})
 			Expect(err).To(MatchError("invalid operation, action parameter is empty: {}"))
 		})
 
@@ -680,7 +681,7 @@ var _ = Describe("Broker", func() {
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 
-				_, err := b.LastOperation(context.Background(), "myinstance", `{"action": "provisioning"}`)
+				_, err := b.LastOperation(context.Background(), "myinstance", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(0))
 				Expect(err).To(MatchError(brokerapi.ErrInstanceDoesNotExist))
 			})
@@ -692,7 +693,7 @@ var _ = Describe("Broker", func() {
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 				ctx := context.Background()
-				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
+				_, err := b.LastOperation(ctx, "myinstance", brokerapi.PollDetails{OperationData: `{"action": "deprovisioning"}`})
 
 				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(1))
 				receivedContext, receivedInstanceID := fakeProvider.DeleteCacheParameterGroupArgsForCall(0)
@@ -709,7 +710,7 @@ var _ = Describe("Broker", func() {
 				deleteError := errors.New("this is an error")
 				fakeProvider.DeleteCacheParameterGroupReturns(deleteError)
 				ctx := context.Background()
-				_, err := b.LastOperation(ctx, "myinstance", `{"action": "deprovisioning"}`)
+				_, err := b.LastOperation(ctx, "myinstance", brokerapi.PollDetails{OperationData: `{"action": "deprovisioning"}`})
 
 				Expect(err).To(MatchError("error deleting parameter group myinstance: this is an error"))
 			})
@@ -723,8 +724,9 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GetStateReturns("some-unknown-state", "", nil)
 			b := broker.New(validConfig, fakeProvider, logger)
 
-			b.LastOperation(context.Background(), "instanceid", `{"action": "provisioning"}`)
+			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 
+			Expect(err).NotTo(HaveOccurred())
 			Expect(log).To(gbytes.Say("Unknown service state: some-unknown-state"))
 		})
 
@@ -763,7 +765,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GenerateCredentialsReturnsOnCall(0, expectedCredentials, nil)
 
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-			binding, err := b.Bind(ctx, instanceID, bindingID, brokerapi.BindDetails{})
+			binding, err := b.Bind(ctx, instanceID, bindingID, brokerapi.BindDetails{}, false)
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(binding).To(Equal(brokerapi.Binding{Credentials: expectedCredentials}))
@@ -781,7 +783,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.GenerateCredentialsReturnsOnCall(0, nil, bindErr)
 
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-			binding, err := b.Bind(context.Background(), "test-instance", "test-binding", brokerapi.BindDetails{})
+			binding, err := b.Bind(context.Background(), "test-instance", "test-binding", brokerapi.BindDetails{}, false)
 
 			Expect(err).To(MatchError(bindErr))
 			Expect(binding).To(Equal(brokerapi.Binding{}))
@@ -798,7 +800,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.RevokeCredentialsReturnsOnCall(0, nil)
 
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-			err := b.Unbind(ctx, instanceID, bindingID, brokerapi.UnbindDetails{})
+			_, err := b.Unbind(ctx, instanceID, bindingID, brokerapi.UnbindDetails{}, false)
 
 			Expect(err).ToNot(HaveOccurred())
 
@@ -815,7 +817,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider.RevokeCredentialsReturnsOnCall(0, unbindErr)
 
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-			err := b.Unbind(context.Background(), "test-instance", "test-binding", brokerapi.UnbindDetails{})
+			_, err := b.Unbind(context.Background(), "test-instance", "test-binding", brokerapi.UnbindDetails{}, false)
 
 			Expect(err).To(MatchError(unbindErr))
 		})

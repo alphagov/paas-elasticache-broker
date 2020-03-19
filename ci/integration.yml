@@ -15,5 +15,5 @@ run:
     - -e
     - -c
     - |
-      apk add --update make
+      apk add --update make git
       make integration

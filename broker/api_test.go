@@ -20,12 +20,13 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 func NewRequest(method, path string, body io.Reader, username, password string, params url.Values) *http.Request {
 	brokerUrl := "http://127.0.0.1:8080" + path
 	req := httptest.NewRequest(method, brokerUrl, body)
+	req.Header.Set("X-Broker-API-Version", "2.14")
 	if username != "" {
 		req.SetBasicAuth(username, password)
 	}
@@ -173,7 +174,7 @@ var _ = Describe("Broker", func() {
 				nil,
 				credentials.Username,
 				credentials.Password,
-				url.Values{"accepts_incomplete": []string{"true"}},
+				url.Values{"accepts_incomplete": []string{"true"}, "service_id": []string{uuid.NewV4().String()}, "plan_id": []string{uuid.NewV4().String()}},
 			))
 
 			Expect(resp.Code).To(Equal(202))
@@ -189,7 +190,7 @@ var _ = Describe("Broker", func() {
 				nil,
 				credentials.Username,
 				credentials.Password,
-				url.Values{"accepts_incomplete": []string{"true"}},
+				url.Values{"accepts_incomplete": []string{"true"}, "service_id": []string{uuid.NewV4().String()}, "plan_id": []string{uuid.NewV4().String()}},
 			))
 
 			Expect(resp.Code).To(Equal(500))
@@ -204,7 +205,7 @@ var _ = Describe("Broker", func() {
 				nil,
 				credentials.Username,
 				credentials.Password,
-				url.Values{"accepts_incomplete": []string{"false"}},
+				url.Values{"accepts_incomplete": []string{"false"}, "service_id": []string{uuid.NewV4().String()}, "plan_id": []string{uuid.NewV4().String()}},
 			))
 
 			Expect(resp.Code).To(Equal(422))

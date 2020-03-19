@@ -54,9 +54,21 @@ func (ct ByCreateTime) Len() int           { return len(ct) }
 func (ct ByCreateTime) Swap(i, j int)      { ct[i], ct[j] = ct[j], ct[i] }
 func (ct ByCreateTime) Less(i, j int) bool { return ct[i].CreateTime.After(ct[j].CreateTime) }
 
+func (b *Broker) GetBinding(ctx context.Context, first, second string) (brokerapi.GetBindingSpec, error) {
+	return brokerapi.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
+}
+
+func (b *Broker) GetInstance(ctx context.Context, first string) (brokerapi.GetInstanceDetailsSpec, error) {
+	return brokerapi.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
+}
+
+func (b *Broker) LastBindingOperation(ctx context.Context, first, second string, pollDetails brokerapi.PollDetails) (brokerapi.LastOperation, error) {
+	return brokerapi.LastOperation{}, fmt.Errorf("LastBindingOperation method not implemented")
+}
+
 // Services returns with the provided services
-func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
-	return b.config.Catalog.Services
+func (b *Broker) Services(ctx context.Context) ([]brokerapi.Service, error) {
+	return b.config.Catalog.Services, nil
 }
 
 // Provision creates a new ElastiCache replication group
@@ -260,7 +272,7 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 }
 
 // Bind binds an application and a service instance
-func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details brokerapi.BindDetails) (brokerapi.Binding, error) {
+func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details brokerapi.BindDetails, asyncAllowed bool) (brokerapi.Binding, error) {
 	b.logger.Debug("bind", lager.Data{
 		"instance-id": instanceID,
 		"binding-id":  bindingID,
@@ -278,31 +290,31 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 }
 
 // Unbind removes the binding between an application and a service instance
-func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, details brokerapi.UnbindDetails) error {
+func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, details brokerapi.UnbindDetails, asyncAllowed bool) (brokerapi.UnbindSpec, error) {
 	b.logger.Debug("unbind", lager.Data{
 		"instance-id": instanceID,
 		"binding-id":  bindingID,
 		"details":     details,
 	})
 
-	return b.provider.RevokeCredentials(ctx, instanceID, bindingID)
+	return brokerapi.UnbindSpec{}, b.provider.RevokeCredentials(ctx, instanceID, bindingID)
 }
 
 // LastOperation returns with the last known state of the given service instance
-func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData string) (brokerapi.LastOperation, error) {
+func (b *Broker) LastOperation(ctx context.Context, instanceID string, pollDetails brokerapi.PollDetails) (brokerapi.LastOperation, error) {
 	b.logger.Debug("last-operation", lager.Data{
 		"instance-id":    instanceID,
-		"operation-data": operationData,
+		"operation-data": pollDetails.OperationData,
 	})
 
 	var operation Operation
-	if operationData != "" {
-		err := json.Unmarshal([]byte(operationData), &operation)
+	if pollDetails.OperationData != "" {
+		err := json.Unmarshal([]byte(pollDetails.OperationData), &operation)
 		if err != nil {
-			return brokerapi.LastOperation{}, fmt.Errorf("invalid operation data: %s", operationData)
+			return brokerapi.LastOperation{}, fmt.Errorf("invalid operation data: %s", pollDetails.OperationData)
 		}
 		if operation.Action == "" {
-			return brokerapi.LastOperation{}, fmt.Errorf("invalid operation, action parameter is empty: %s", operationData)
+			return brokerapi.LastOperation{}, fmt.Errorf("invalid operation, action parameter is empty: %s", pollDetails.OperationData)
 		}
 	}
 
