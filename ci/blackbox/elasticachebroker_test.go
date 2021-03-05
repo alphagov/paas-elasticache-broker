@@ -109,6 +109,10 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 						Key:   aws.String("instance-id"),
 						Value: aws.String(instanceID),
 					},
+					&elasticache.Tag{
+						Key: aws.String("chargeable_entity"),
+						Value: aws.String(instanceID),
+					},
 				))
 			})
 
@@ -324,6 +328,10 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 					},
 					&elasticache.Tag{
 						Key:   aws.String("instance-id"),
+						Value: aws.String(restoredInstanceID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("chargeable_entity"),
 						Value: aws.String(restoredInstanceID),
 					},
 				))

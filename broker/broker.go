@@ -153,14 +153,15 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		Description:                "Cloud Foundry service",
 		Parameters:                 params,
 		Tags: map[string]string{
-			"created-by":      b.config.BrokerName,
-			"service-id":      details.ServiceID,
-			"plan-id":         details.PlanID,
-			"organization-id": details.OrganizationGUID,
-			"space-id":        details.SpaceGUID,
-			"instance-id":     instanceID,
+			"created-by":        b.config.BrokerName,
+			"service-id":        details.ServiceID,
+			"plan-id":           details.PlanID,
+			"organization-id":   details.OrganizationGUID,
+			"space-id":          details.SpaceGUID,
+			"instance-id":       instanceID,
+			"chargeable_entity": instanceID, // 'chargeable_entity' is the configured cost allocation tag. It's supposed to be snake_case.
 		},
-		Engine: planConfig.Engine,
+		Engine:        planConfig.Engine,
 		EngineVersion: planConfig.EngineVersion,
 	}
 
