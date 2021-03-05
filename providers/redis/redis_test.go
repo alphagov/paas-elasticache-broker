@@ -173,6 +173,15 @@ var _ = Describe("Provider", func() {
 			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
 		})
 
+		It("tags the secret in the secrets manager with the cost allocation tag", func(){
+			Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
+			_, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
+			Expect(input.Tags).To(ContainElement(&secretsmanager.Tag{
+				Key:   aws.String("chargeable_entity"),
+				Value: aws.String(instanceID),
+			}))
+		})
+
 		Context("when the secrets manager path contains a trailing /", func() {
 			BeforeEach(func() {
 				secretsManagerPath = "elasticache-broker-test/"

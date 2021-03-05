@@ -424,6 +424,12 @@ func (p *RedisProvider) CreateAuthTokenSecret(ctx context.Context, instanceID st
 		Name:         aws.String(name),
 		SecretString: aws.String(authToken),
 		KmsKeyId:     aws.String(p.kmsKeyID),
+		Tags: []*secretsmanager.Tag{
+			{
+				Key:   aws.String("chargeable_entity"),
+				Value: aws.String(instanceID),
+			},
+		},
 	})
 	return err
 }
