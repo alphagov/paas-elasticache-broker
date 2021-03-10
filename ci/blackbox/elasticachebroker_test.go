@@ -247,6 +247,9 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 					fmt.Sprintf("%s:%d", host, port),
 					redisclient.DialPassword(password),
 					redisclient.DialUseTLS(false),
+					redisclient.DialConnectTimeout(5*time.Minute),
+					redisclient.DialReadTimeout(5*time.Minute),
+					redisclient.DialWriteTimeout(5*time.Minute),
 				)
 				Expect(err).To(HaveOccurred())
 			})
