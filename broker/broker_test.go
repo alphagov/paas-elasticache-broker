@@ -48,9 +48,9 @@ var _ = Describe("Broker", func() {
 						"maxmemory-policy": "volatile-lru",
 						"reserved-memory":  "0",
 					},
-					AutomaticFailoverEnabled: true,
-					Engine: "redis",
-					EngineVersion: "4.0.10",
+					AutomaticFailoverEnabled:  true,
+					Engine:                    "redis",
+					EngineVersion:             "4.0.10",
 					CacheParameterGroupFamily: "default.redis4.0",
 				},
 			},
@@ -139,14 +139,15 @@ var _ = Describe("Broker", func() {
 				Description:                "Cloud Foundry service",
 				Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
 				Tags: map[string]string{
-					"created-by":      validConfig.BrokerName,
-					"service-id":      validProvisionDetails.ServiceID,
-					"plan-id":         validProvisionDetails.PlanID,
-					"organization-id": validProvisionDetails.OrganizationGUID,
-					"space-id":        validProvisionDetails.SpaceGUID,
-					"instance-id":     "instanceid",
+					"created-by":        validConfig.BrokerName,
+					"service-id":        validProvisionDetails.ServiceID,
+					"plan-id":           validProvisionDetails.PlanID,
+					"organization-id":   validProvisionDetails.OrganizationGUID,
+					"space-id":          validProvisionDetails.SpaceGUID,
+					"instance-id":       "instanceid",
+					"chargeable_entity": "instanceid",
 				},
-				Engine: "redis",
+				Engine:        "redis",
 				EngineVersion: "4.0.10",
 			}
 
@@ -172,6 +173,20 @@ var _ = Describe("Broker", func() {
 			}
 
 			Expect(params.Parameters).To(Equal(expectedParameters))
+		})
+
+		It("sets a cost allocation tag with a value matching the instance id", func() {
+			instanceId := "instance-123"
+			fakeProvider := &mocks.FakeProvider{}
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+			_, err := b.Provision(context.Background(), instanceId, validProvisionDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.ProvisionCallCount()).To(Equal(1))
+			_, _, callParams := fakeProvider.ProvisionArgsForCall(0)
+
+			Expect(callParams.Tags).To(HaveKeyWithValue("chargeable_entity", instanceId))
 		})
 
 		Context("given an unknown user provided parameter", func() {
@@ -320,7 +335,7 @@ var _ = Describe("Broker", func() {
 
 				expectedParams := providers.ProvisionParameters{
 					InstanceType:               validConfig.PlanConfigs["plan1"].InstanceType,
-					CacheParameterGroupFamily:   "default.redis4.0",
+					CacheParameterGroupFamily:  "default.redis4.0",
 					SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 					CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
 					PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
@@ -332,14 +347,15 @@ var _ = Describe("Broker", func() {
 					Description:                "Cloud Foundry service",
 					Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
 					Tags: map[string]string{
-						"created-by":      validConfig.BrokerName,
-						"service-id":      validProvisionDetails.ServiceID,
-						"plan-id":         validProvisionDetails.PlanID,
-						"organization-id": validProvisionDetails.OrganizationGUID,
-						"space-id":        validProvisionDetails.SpaceGUID,
-						"instance-id":     "instanceid",
+						"created-by":        validConfig.BrokerName,
+						"service-id":        validProvisionDetails.ServiceID,
+						"plan-id":           validProvisionDetails.PlanID,
+						"organization-id":   validProvisionDetails.OrganizationGUID,
+						"space-id":          validProvisionDetails.SpaceGUID,
+						"instance-id":       "instanceid",
+						"chargeable_entity": "instanceid",
 					},
-					Engine: "redis",
+					Engine:        "redis",
 					EngineVersion: "4.0.10",
 				}
 

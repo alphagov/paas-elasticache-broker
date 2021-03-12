@@ -109,6 +109,10 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 						Key:   aws.String("instance-id"),
 						Value: aws.String(instanceID),
 					},
+					&elasticache.Tag{
+						Key: aws.String("chargeable_entity"),
+						Value: aws.String(instanceID),
+					},
 				))
 			})
 
@@ -243,6 +247,9 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 					fmt.Sprintf("%s:%d", host, port),
 					redisclient.DialPassword(password),
 					redisclient.DialUseTLS(false),
+					redisclient.DialConnectTimeout(5*time.Minute),
+					redisclient.DialReadTimeout(5*time.Minute),
+					redisclient.DialWriteTimeout(5*time.Minute),
 				)
 				Expect(err).To(HaveOccurred())
 			})
@@ -324,6 +331,10 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 					},
 					&elasticache.Tag{
 						Key:   aws.String("instance-id"),
+						Value: aws.String(restoredInstanceID),
+					},
+					&elasticache.Tag{
+						Key:   aws.String("chargeable_entity"),
 						Value: aws.String(restoredInstanceID),
 					},
 				))
