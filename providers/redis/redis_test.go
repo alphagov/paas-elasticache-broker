@@ -677,7 +677,7 @@ var _ = Describe("Provider", func() {
 				Port:       1234,
 				Name:       "cf-qwkec4pxhft6q",
 				Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
-				URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
+				URI:        "rediss://:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
 				TLSEnabled: true,
 			}))
 		})
@@ -715,7 +715,7 @@ var _ = Describe("Provider", func() {
 					Port:       1234,
 					Name:       "cf-qwkec4pxhft6q",
 					Password:   "Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=",
-					URI:        "rediss://x:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
+					URI:        "rediss://:Jc9xP_jNPaWtqIry7D-EuRlsm_z_-D_dtIVQhEv6oR4=@test-host:1234",
 					TLSEnabled: true,
 				}))
 			})
