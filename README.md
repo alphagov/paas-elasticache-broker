@@ -107,7 +107,7 @@ When binding a service instance to an application the *Bind* call returns the fo
   "host": "redis-host",
   "port": 6379,
   "password": "pass",
-  "uri": "rediss://x:pass@redis-host:6379",
+  "uri": "rediss://:pass@redis-host:6379",
   "tls_enabled": true
 }
 ```

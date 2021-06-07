@@ -357,7 +357,9 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 	uri := &url.URL{
 		Scheme: "rediss",
 		Host:   fmt.Sprintf("%s:%d", host, port),
-		User:   url.UserPassword("x", authToken),
+		// Provide an empty string for username, it's not used for Redis 5, and breaks libraries which support Redis 6 too.
+		// TODO: Revisit this with Redis 6 support?
+		User:   url.UserPassword("", authToken),
 	}
 	return &providers.Credentials{
 		Host:       host,
