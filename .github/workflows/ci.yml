@@ -5,7 +5,7 @@ on: pull_request
 jobs:
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
 
@@ -18,4 +18,6 @@ jobs:
         run: go install github.com/onsi/ginkgo/ginkgo@latest
 
       - name: Test
-        run: make unit
+        run: |
+          export GOPATH=$(go env GOPATH)
+          make unit
