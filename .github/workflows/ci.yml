@@ -5,17 +5,19 @@ on: pull_request
 jobs:
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
 
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.13
+          go-version: 1.18
 
       - name: Install ginkgo
-        run: go get github.com/onsi/ginkgo/ginkgo
+        run: go install github.com/onsi/ginkgo/ginkgo@latest
 
       - name: Test
-        run: make unit
+        run: |
+          export GOPATH=$(go env GOPATH)
+          make unit

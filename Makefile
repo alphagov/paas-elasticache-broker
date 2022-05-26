@@ -2,11 +2,8 @@
 
 test: unit integration
 
-unit: $(GOPATH)/bin/ginkgo
+unit:
 	ginkgo -r --skipPackage=ci
 
-integration: $(GOPATH)/bin/ginkgo
+integration:
 	ginkgo -v -r ci/blackbox
-
-$(GOPATH)/bin/ginkgo:
-	go get -u github.com/onsi/ginkgo/ginkgo@v1.4.0

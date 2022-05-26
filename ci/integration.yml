@@ -4,7 +4,7 @@ image_resource:
   type: docker-image
   source:
     repository: golang
-    tag: 1.13
+    tag: 1.18
 inputs:
   - name: repo
     path: ../../../go/src/github.com/alphagov/paas-elasticache-broker
@@ -15,4 +15,5 @@ run:
     - -e
     - -c
     - |
+      go install github.com/onsi/ginkgo/ginkgo@latest
       make integration
