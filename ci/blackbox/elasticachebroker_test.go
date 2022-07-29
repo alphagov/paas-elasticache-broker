@@ -12,7 +12,7 @@ import (
 	"github.com/alphagov/paas-elasticache-broker/ci/helpers"
 	"github.com/alphagov/paas-elasticache-broker/providers/redis"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -110,7 +110,7 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 						Value: aws.String(instanceID),
 					},
 					&elasticache.Tag{
-						Key: aws.String("chargeable_entity"),
+						Key:   aws.String("chargeable_entity"),
 						Value: aws.String(instanceID),
 					},
 				))

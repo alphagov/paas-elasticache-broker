@@ -18,7 +18,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"code.cloudfoundry.org/lager"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -65,7 +65,7 @@ var _ = Describe("Provider", func() {
 		BeforeEach(func() {
 			provisionParams = providers.ProvisionParameters{
 				InstanceType:               "test instance type",
-				CacheParameterGroupFamily: "redis4.0",
+				CacheParameterGroupFamily:  "redis4.0",
 				SecurityGroupIds:           []string{"test sg1"},
 				CacheSubnetGroupName:       "test subnet group",
 				PreferredMaintenanceWindow: "test maintenance window",
@@ -78,8 +78,8 @@ var _ = Describe("Provider", func() {
 					"key1": "value1",
 					"key2": "value2",
 				},
-				Tags: map[string]string{},
-				Engine: "redis",
+				Tags:          map[string]string{},
+				Engine:        "redis",
 				EngineVersion: "4.0.10",
 			}
 		})
@@ -173,7 +173,7 @@ var _ = Describe("Provider", func() {
 			Expect(input.KmsKeyId).To(Equal(aws.String("my-kms-key")))
 		})
 
-		It("tags the secret in the secrets manager with the cost allocation tag", func(){
+		It("tags the secret in the secrets manager with the cost allocation tag", func() {
 			Expect(mockSecretsManager.CreateSecretWithContextCallCount()).To(Equal(1))
 			_, input, _ := mockSecretsManager.CreateSecretWithContextArgsForCall(0)
 			Expect(input.Tags).To(ContainElement(&secretsmanager.Tag{
@@ -211,7 +211,7 @@ var _ = Describe("Provider", func() {
 			passedCtx, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
 			Expect(passedCtx).To(Equal(ctx))
 			Expect(passedInput).To(Equal(&elasticache.CreateReplicationGroupInput{
-				Tags: []*elasticache.Tag{},
+				Tags:                        []*elasticache.Tag{},
 				AtRestEncryptionEnabled:     aws.Bool(true),
 				TransitEncryptionEnabled:    aws.Bool(true),
 				AuthToken:                   passedInput.AuthToken,
