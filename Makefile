@@ -3,7 +3,7 @@
 test: unit integration
 
 unit:
-	ginkgo -r --skipPackage=ci
+	ginkgo -r --skip-package=ci
 
 integration:
 	ginkgo -v -r ci/blackbox
