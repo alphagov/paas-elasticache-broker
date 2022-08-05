@@ -73,6 +73,7 @@ var _ = Describe("Provider", func() {
 				ShardCount:                 1,
 				SnapshotRetentionLimit:     7,
 				AutomaticFailoverEnabled:   true,
+				MultiAZEnabled:             true,
 				Description:                "test desc",
 				Parameters: map[string]string{
 					"key1": "value1",
@@ -216,6 +217,7 @@ var _ = Describe("Provider", func() {
 				TransitEncryptionEnabled:    aws.Bool(true),
 				AuthToken:                   passedInput.AuthToken,
 				AutomaticFailoverEnabled:    aws.Bool(true),
+				MultiAZEnabled:              aws.Bool(true),
 				CacheNodeType:               aws.String("test instance type"),
 				CacheParameterGroupName:     aws.String(replicationGroupID),
 				SecurityGroupIds:            aws.StringSlice([]string{"test sg1"}),
@@ -255,6 +257,7 @@ var _ = Describe("Provider", func() {
 			BeforeEach(func() {
 				provisionParams.SnapshotRetentionLimit = 0
 				provisionParams.AutomaticFailoverEnabled = false
+				provisionParams.MultiAZEnabled = false
 			})
 
 			It("creates a replication group without backup or failover", func() {
@@ -264,6 +267,7 @@ var _ = Describe("Provider", func() {
 				Expect(passedInput.SnapshotRetentionLimit).To(BeNil())
 				Expect(passedInput.SnapshotWindow).To(BeNil())
 				Expect(*passedInput.AutomaticFailoverEnabled).To(BeFalse())
+				Expect(*passedInput.MultiAZEnabled).To(BeFalse())
 			})
 		})
 
