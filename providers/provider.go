@@ -30,6 +30,7 @@ type ProvisionParameters struct {
 	SnapshotRetentionLimit     int64
 	RestoreFromSnapshot        *string
 	AutomaticFailoverEnabled   bool
+	MultiAZEnabled             bool
 	Description                string
 	Parameters                 map[string]string
 	Tags                       map[string]string
