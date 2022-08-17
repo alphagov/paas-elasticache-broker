@@ -9,38 +9,24 @@ import (
 )
 
 type FakeProvider struct {
-	ProvisionStub        func(ctx context.Context, instanceID string, params providers.ProvisionParameters) error
-	provisionMutex       sync.RWMutex
-	provisionArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
-		params     providers.ProvisionParameters
+	DeleteCacheParameterGroupStub        func(context.Context, string) error
+	deleteCacheParameterGroupMutex       sync.RWMutex
+	deleteCacheParameterGroupArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
 	}
-	provisionReturns struct {
+	deleteCacheParameterGroupReturns struct {
 		result1 error
 	}
-	provisionReturnsOnCall map[int]struct {
+	deleteCacheParameterGroupReturnsOnCall map[int]struct {
 		result1 error
 	}
-	UpdateStub        func(ctx context.Context, instanceID string, params providers.UpdateParameters) error
-	updateMutex       sync.RWMutex
-	updateArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
-		params     providers.UpdateParameters
-	}
-	updateReturns struct {
-		result1 error
-	}
-	updateReturnsOnCall map[int]struct {
-		result1 error
-	}
-	DeprovisionStub        func(ctx context.Context, instanceID string, params providers.DeprovisionParameters) error
+	DeprovisionStub        func(context.Context, string, providers.DeprovisionParameters) error
 	deprovisionMutex       sync.RWMutex
 	deprovisionArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
-		params     providers.DeprovisionParameters
+		arg1 context.Context
+		arg2 string
+		arg3 providers.DeprovisionParameters
 	}
 	deprovisionReturns struct {
 		result1 error
@@ -48,11 +34,40 @@ type FakeProvider struct {
 	deprovisionReturnsOnCall map[int]struct {
 		result1 error
 	}
-	GetStateStub        func(ctx context.Context, instanceID string) (providers.ServiceState, string, error)
+	FindSnapshotsStub        func(context.Context, string) ([]providers.SnapshotInfo, error)
+	findSnapshotsMutex       sync.RWMutex
+	findSnapshotsArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	findSnapshotsReturns struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}
+	findSnapshotsReturnsOnCall map[int]struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}
+	GenerateCredentialsStub        func(context.Context, string, string) (*providers.Credentials, error)
+	generateCredentialsMutex       sync.RWMutex
+	generateCredentialsArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+	}
+	generateCredentialsReturns struct {
+		result1 *providers.Credentials
+		result2 error
+	}
+	generateCredentialsReturnsOnCall map[int]struct {
+		result1 *providers.Credentials
+		result2 error
+	}
+	GetStateStub        func(context.Context, string) (providers.ServiceState, string, error)
 	getStateMutex       sync.RWMutex
 	getStateArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
+		arg1 context.Context
+		arg2 string
 	}
 	getStateReturns struct {
 		result1 providers.ServiceState
@@ -64,27 +79,25 @@ type FakeProvider struct {
 		result2 string
 		result3 error
 	}
-	GenerateCredentialsStub        func(ctx context.Context, instanceID, bindingID string) (*providers.Credentials, error)
-	generateCredentialsMutex       sync.RWMutex
-	generateCredentialsArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
-		bindingID  string
+	ProvisionStub        func(context.Context, string, providers.ProvisionParameters) error
+	provisionMutex       sync.RWMutex
+	provisionArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 providers.ProvisionParameters
 	}
-	generateCredentialsReturns struct {
-		result1 *providers.Credentials
-		result2 error
+	provisionReturns struct {
+		result1 error
 	}
-	generateCredentialsReturnsOnCall map[int]struct {
-		result1 *providers.Credentials
-		result2 error
+	provisionReturnsOnCall map[int]struct {
+		result1 error
 	}
-	RevokeCredentialsStub        func(ctx context.Context, instanceID, bindingID string) error
+	RevokeCredentialsStub        func(context.Context, string, string) error
 	revokeCredentialsMutex       sync.RWMutex
 	revokeCredentialsArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
-		bindingID  string
+		arg1 context.Context
+		arg2 string
+		arg3 string
 	}
 	revokeCredentialsReturns struct {
 		result1 error
@@ -92,153 +105,104 @@ type FakeProvider struct {
 	revokeCredentialsReturnsOnCall map[int]struct {
 		result1 error
 	}
-	DeleteCacheParameterGroupStub        func(ctx context.Context, instanceID string) error
-	deleteCacheParameterGroupMutex       sync.RWMutex
-	deleteCacheParameterGroupArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
+	UpdateStub        func(context.Context, string, providers.UpdateParameters) error
+	updateMutex       sync.RWMutex
+	updateArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 providers.UpdateParameters
 	}
-	deleteCacheParameterGroupReturns struct {
+	updateReturns struct {
 		result1 error
 	}
-	deleteCacheParameterGroupReturnsOnCall map[int]struct {
+	updateReturnsOnCall map[int]struct {
 		result1 error
-	}
-	FindSnapshotsStub        func(ctx context.Context, instanceID string) ([]providers.SnapshotInfo, error)
-	findSnapshotsMutex       sync.RWMutex
-	findSnapshotsArgsForCall []struct {
-		ctx        context.Context
-		instanceID string
-	}
-	findSnapshotsReturns struct {
-		result1 []providers.SnapshotInfo
-		result2 error
-	}
-	findSnapshotsReturnsOnCall map[int]struct {
-		result1 []providers.SnapshotInfo
-		result2 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeProvider) Provision(ctx context.Context, instanceID string, params providers.ProvisionParameters) error {
-	fake.provisionMutex.Lock()
-	ret, specificReturn := fake.provisionReturnsOnCall[len(fake.provisionArgsForCall)]
-	fake.provisionArgsForCall = append(fake.provisionArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-		params     providers.ProvisionParameters
-	}{ctx, instanceID, params})
-	fake.recordInvocation("Provision", []interface{}{ctx, instanceID, params})
-	fake.provisionMutex.Unlock()
-	if fake.ProvisionStub != nil {
-		return fake.ProvisionStub(ctx, instanceID, params)
+func (fake *FakeProvider) DeleteCacheParameterGroup(arg1 context.Context, arg2 string) error {
+	fake.deleteCacheParameterGroupMutex.Lock()
+	ret, specificReturn := fake.deleteCacheParameterGroupReturnsOnCall[len(fake.deleteCacheParameterGroupArgsForCall)]
+	fake.deleteCacheParameterGroupArgsForCall = append(fake.deleteCacheParameterGroupArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.DeleteCacheParameterGroupStub
+	fakeReturns := fake.deleteCacheParameterGroupReturns
+	fake.recordInvocation("DeleteCacheParameterGroup", []interface{}{arg1, arg2})
+	fake.deleteCacheParameterGroupMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	return fake.provisionReturns.result1
+	return fakeReturns.result1
 }
 
-func (fake *FakeProvider) ProvisionCallCount() int {
-	fake.provisionMutex.RLock()
-	defer fake.provisionMutex.RUnlock()
-	return len(fake.provisionArgsForCall)
+func (fake *FakeProvider) DeleteCacheParameterGroupCallCount() int {
+	fake.deleteCacheParameterGroupMutex.RLock()
+	defer fake.deleteCacheParameterGroupMutex.RUnlock()
+	return len(fake.deleteCacheParameterGroupArgsForCall)
 }
 
-func (fake *FakeProvider) ProvisionArgsForCall(i int) (context.Context, string, providers.ProvisionParameters) {
-	fake.provisionMutex.RLock()
-	defer fake.provisionMutex.RUnlock()
-	return fake.provisionArgsForCall[i].ctx, fake.provisionArgsForCall[i].instanceID, fake.provisionArgsForCall[i].params
+func (fake *FakeProvider) DeleteCacheParameterGroupCalls(stub func(context.Context, string) error) {
+	fake.deleteCacheParameterGroupMutex.Lock()
+	defer fake.deleteCacheParameterGroupMutex.Unlock()
+	fake.DeleteCacheParameterGroupStub = stub
 }
 
-func (fake *FakeProvider) ProvisionReturns(result1 error) {
-	fake.ProvisionStub = nil
-	fake.provisionReturns = struct {
+func (fake *FakeProvider) DeleteCacheParameterGroupArgsForCall(i int) (context.Context, string) {
+	fake.deleteCacheParameterGroupMutex.RLock()
+	defer fake.deleteCacheParameterGroupMutex.RUnlock()
+	argsForCall := fake.deleteCacheParameterGroupArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeProvider) DeleteCacheParameterGroupReturns(result1 error) {
+	fake.deleteCacheParameterGroupMutex.Lock()
+	defer fake.deleteCacheParameterGroupMutex.Unlock()
+	fake.DeleteCacheParameterGroupStub = nil
+	fake.deleteCacheParameterGroupReturns = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeProvider) ProvisionReturnsOnCall(i int, result1 error) {
-	fake.ProvisionStub = nil
-	if fake.provisionReturnsOnCall == nil {
-		fake.provisionReturnsOnCall = make(map[int]struct {
+func (fake *FakeProvider) DeleteCacheParameterGroupReturnsOnCall(i int, result1 error) {
+	fake.deleteCacheParameterGroupMutex.Lock()
+	defer fake.deleteCacheParameterGroupMutex.Unlock()
+	fake.DeleteCacheParameterGroupStub = nil
+	if fake.deleteCacheParameterGroupReturnsOnCall == nil {
+		fake.deleteCacheParameterGroupReturnsOnCall = make(map[int]struct {
 			result1 error
 		})
 	}
-	fake.provisionReturnsOnCall[i] = struct {
+	fake.deleteCacheParameterGroupReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeProvider) Update(ctx context.Context, instanceID string, params providers.UpdateParameters) error {
-	fake.updateMutex.Lock()
-	ret, specificReturn := fake.updateReturnsOnCall[len(fake.updateArgsForCall)]
-	fake.updateArgsForCall = append(fake.updateArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-		params     providers.UpdateParameters
-	}{ctx, instanceID, params})
-	fake.recordInvocation("Update", []interface{}{ctx, instanceID, params})
-	fake.updateMutex.Unlock()
-	if fake.UpdateStub != nil {
-		return fake.UpdateStub(ctx, instanceID, params)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.updateReturns.result1
-}
-
-func (fake *FakeProvider) UpdateCallCount() int {
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
-	return len(fake.updateArgsForCall)
-}
-
-func (fake *FakeProvider) UpdateArgsForCall(i int) (context.Context, string, providers.UpdateParameters) {
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
-	return fake.updateArgsForCall[i].ctx, fake.updateArgsForCall[i].instanceID, fake.updateArgsForCall[i].params
-}
-
-func (fake *FakeProvider) UpdateReturns(result1 error) {
-	fake.UpdateStub = nil
-	fake.updateReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeProvider) UpdateReturnsOnCall(i int, result1 error) {
-	fake.UpdateStub = nil
-	if fake.updateReturnsOnCall == nil {
-		fake.updateReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.updateReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeProvider) Deprovision(ctx context.Context, instanceID string, params providers.DeprovisionParameters) error {
+func (fake *FakeProvider) Deprovision(arg1 context.Context, arg2 string, arg3 providers.DeprovisionParameters) error {
 	fake.deprovisionMutex.Lock()
 	ret, specificReturn := fake.deprovisionReturnsOnCall[len(fake.deprovisionArgsForCall)]
 	fake.deprovisionArgsForCall = append(fake.deprovisionArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-		params     providers.DeprovisionParameters
-	}{ctx, instanceID, params})
-	fake.recordInvocation("Deprovision", []interface{}{ctx, instanceID, params})
+		arg1 context.Context
+		arg2 string
+		arg3 providers.DeprovisionParameters
+	}{arg1, arg2, arg3})
+	stub := fake.DeprovisionStub
+	fakeReturns := fake.deprovisionReturns
+	fake.recordInvocation("Deprovision", []interface{}{arg1, arg2, arg3})
 	fake.deprovisionMutex.Unlock()
-	if fake.DeprovisionStub != nil {
-		return fake.DeprovisionStub(ctx, instanceID, params)
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	return fake.deprovisionReturns.result1
+	return fakeReturns.result1
 }
 
 func (fake *FakeProvider) DeprovisionCallCount() int {
@@ -247,13 +211,22 @@ func (fake *FakeProvider) DeprovisionCallCount() int {
 	return len(fake.deprovisionArgsForCall)
 }
 
+func (fake *FakeProvider) DeprovisionCalls(stub func(context.Context, string, providers.DeprovisionParameters) error) {
+	fake.deprovisionMutex.Lock()
+	defer fake.deprovisionMutex.Unlock()
+	fake.DeprovisionStub = stub
+}
+
 func (fake *FakeProvider) DeprovisionArgsForCall(i int) (context.Context, string, providers.DeprovisionParameters) {
 	fake.deprovisionMutex.RLock()
 	defer fake.deprovisionMutex.RUnlock()
-	return fake.deprovisionArgsForCall[i].ctx, fake.deprovisionArgsForCall[i].instanceID, fake.deprovisionArgsForCall[i].params
+	argsForCall := fake.deprovisionArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
 func (fake *FakeProvider) DeprovisionReturns(result1 error) {
+	fake.deprovisionMutex.Lock()
+	defer fake.deprovisionMutex.Unlock()
 	fake.DeprovisionStub = nil
 	fake.deprovisionReturns = struct {
 		result1 error
@@ -261,6 +234,8 @@ func (fake *FakeProvider) DeprovisionReturns(result1 error) {
 }
 
 func (fake *FakeProvider) DeprovisionReturnsOnCall(i int, result1 error) {
+	fake.deprovisionMutex.Lock()
+	defer fake.deprovisionMutex.Unlock()
 	fake.DeprovisionStub = nil
 	if fake.deprovisionReturnsOnCall == nil {
 		fake.deprovisionReturnsOnCall = make(map[int]struct {
@@ -272,22 +247,155 @@ func (fake *FakeProvider) DeprovisionReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeProvider) GetState(ctx context.Context, instanceID string) (providers.ServiceState, string, error) {
+func (fake *FakeProvider) FindSnapshots(arg1 context.Context, arg2 string) ([]providers.SnapshotInfo, error) {
+	fake.findSnapshotsMutex.Lock()
+	ret, specificReturn := fake.findSnapshotsReturnsOnCall[len(fake.findSnapshotsArgsForCall)]
+	fake.findSnapshotsArgsForCall = append(fake.findSnapshotsArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.FindSnapshotsStub
+	fakeReturns := fake.findSnapshotsReturns
+	fake.recordInvocation("FindSnapshots", []interface{}{arg1, arg2})
+	fake.findSnapshotsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeProvider) FindSnapshotsCallCount() int {
+	fake.findSnapshotsMutex.RLock()
+	defer fake.findSnapshotsMutex.RUnlock()
+	return len(fake.findSnapshotsArgsForCall)
+}
+
+func (fake *FakeProvider) FindSnapshotsCalls(stub func(context.Context, string) ([]providers.SnapshotInfo, error)) {
+	fake.findSnapshotsMutex.Lock()
+	defer fake.findSnapshotsMutex.Unlock()
+	fake.FindSnapshotsStub = stub
+}
+
+func (fake *FakeProvider) FindSnapshotsArgsForCall(i int) (context.Context, string) {
+	fake.findSnapshotsMutex.RLock()
+	defer fake.findSnapshotsMutex.RUnlock()
+	argsForCall := fake.findSnapshotsArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeProvider) FindSnapshotsReturns(result1 []providers.SnapshotInfo, result2 error) {
+	fake.findSnapshotsMutex.Lock()
+	defer fake.findSnapshotsMutex.Unlock()
+	fake.FindSnapshotsStub = nil
+	fake.findSnapshotsReturns = struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) FindSnapshotsReturnsOnCall(i int, result1 []providers.SnapshotInfo, result2 error) {
+	fake.findSnapshotsMutex.Lock()
+	defer fake.findSnapshotsMutex.Unlock()
+	fake.FindSnapshotsStub = nil
+	if fake.findSnapshotsReturnsOnCall == nil {
+		fake.findSnapshotsReturnsOnCall = make(map[int]struct {
+			result1 []providers.SnapshotInfo
+			result2 error
+		})
+	}
+	fake.findSnapshotsReturnsOnCall[i] = struct {
+		result1 []providers.SnapshotInfo
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GenerateCredentials(arg1 context.Context, arg2 string, arg3 string) (*providers.Credentials, error) {
+	fake.generateCredentialsMutex.Lock()
+	ret, specificReturn := fake.generateCredentialsReturnsOnCall[len(fake.generateCredentialsArgsForCall)]
+	fake.generateCredentialsArgsForCall = append(fake.generateCredentialsArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+	}{arg1, arg2, arg3})
+	stub := fake.GenerateCredentialsStub
+	fakeReturns := fake.generateCredentialsReturns
+	fake.recordInvocation("GenerateCredentials", []interface{}{arg1, arg2, arg3})
+	fake.generateCredentialsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeProvider) GenerateCredentialsCallCount() int {
+	fake.generateCredentialsMutex.RLock()
+	defer fake.generateCredentialsMutex.RUnlock()
+	return len(fake.generateCredentialsArgsForCall)
+}
+
+func (fake *FakeProvider) GenerateCredentialsCalls(stub func(context.Context, string, string) (*providers.Credentials, error)) {
+	fake.generateCredentialsMutex.Lock()
+	defer fake.generateCredentialsMutex.Unlock()
+	fake.GenerateCredentialsStub = stub
+}
+
+func (fake *FakeProvider) GenerateCredentialsArgsForCall(i int) (context.Context, string, string) {
+	fake.generateCredentialsMutex.RLock()
+	defer fake.generateCredentialsMutex.RUnlock()
+	argsForCall := fake.generateCredentialsArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeProvider) GenerateCredentialsReturns(result1 *providers.Credentials, result2 error) {
+	fake.generateCredentialsMutex.Lock()
+	defer fake.generateCredentialsMutex.Unlock()
+	fake.GenerateCredentialsStub = nil
+	fake.generateCredentialsReturns = struct {
+		result1 *providers.Credentials
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GenerateCredentialsReturnsOnCall(i int, result1 *providers.Credentials, result2 error) {
+	fake.generateCredentialsMutex.Lock()
+	defer fake.generateCredentialsMutex.Unlock()
+	fake.GenerateCredentialsStub = nil
+	if fake.generateCredentialsReturnsOnCall == nil {
+		fake.generateCredentialsReturnsOnCall = make(map[int]struct {
+			result1 *providers.Credentials
+			result2 error
+		})
+	}
+	fake.generateCredentialsReturnsOnCall[i] = struct {
+		result1 *providers.Credentials
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GetState(arg1 context.Context, arg2 string) (providers.ServiceState, string, error) {
 	fake.getStateMutex.Lock()
 	ret, specificReturn := fake.getStateReturnsOnCall[len(fake.getStateArgsForCall)]
 	fake.getStateArgsForCall = append(fake.getStateArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-	}{ctx, instanceID})
-	fake.recordInvocation("GetState", []interface{}{ctx, instanceID})
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.GetStateStub
+	fakeReturns := fake.getStateReturns
+	fake.recordInvocation("GetState", []interface{}{arg1, arg2})
 	fake.getStateMutex.Unlock()
-	if fake.GetStateStub != nil {
-		return fake.GetStateStub(ctx, instanceID)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
 	}
-	return fake.getStateReturns.result1, fake.getStateReturns.result2, fake.getStateReturns.result3
+	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3
 }
 
 func (fake *FakeProvider) GetStateCallCount() int {
@@ -296,13 +404,22 @@ func (fake *FakeProvider) GetStateCallCount() int {
 	return len(fake.getStateArgsForCall)
 }
 
+func (fake *FakeProvider) GetStateCalls(stub func(context.Context, string) (providers.ServiceState, string, error)) {
+	fake.getStateMutex.Lock()
+	defer fake.getStateMutex.Unlock()
+	fake.GetStateStub = stub
+}
+
 func (fake *FakeProvider) GetStateArgsForCall(i int) (context.Context, string) {
 	fake.getStateMutex.RLock()
 	defer fake.getStateMutex.RUnlock()
-	return fake.getStateArgsForCall[i].ctx, fake.getStateArgsForCall[i].instanceID
+	argsForCall := fake.getStateArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeProvider) GetStateReturns(result1 providers.ServiceState, result2 string, result3 error) {
+	fake.getStateMutex.Lock()
+	defer fake.getStateMutex.Unlock()
 	fake.GetStateStub = nil
 	fake.getStateReturns = struct {
 		result1 providers.ServiceState
@@ -312,6 +429,8 @@ func (fake *FakeProvider) GetStateReturns(result1 providers.ServiceState, result
 }
 
 func (fake *FakeProvider) GetStateReturnsOnCall(i int, result1 providers.ServiceState, result2 string, result3 error) {
+	fake.getStateMutex.Lock()
+	defer fake.getStateMutex.Unlock()
 	fake.GetStateStub = nil
 	if fake.getStateReturnsOnCall == nil {
 		fake.getStateReturnsOnCall = make(map[int]struct {
@@ -327,76 +446,88 @@ func (fake *FakeProvider) GetStateReturnsOnCall(i int, result1 providers.Service
 	}{result1, result2, result3}
 }
 
-func (fake *FakeProvider) GenerateCredentials(ctx context.Context, instanceID string, bindingID string) (*providers.Credentials, error) {
-	fake.generateCredentialsMutex.Lock()
-	ret, specificReturn := fake.generateCredentialsReturnsOnCall[len(fake.generateCredentialsArgsForCall)]
-	fake.generateCredentialsArgsForCall = append(fake.generateCredentialsArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-		bindingID  string
-	}{ctx, instanceID, bindingID})
-	fake.recordInvocation("GenerateCredentials", []interface{}{ctx, instanceID, bindingID})
-	fake.generateCredentialsMutex.Unlock()
-	if fake.GenerateCredentialsStub != nil {
-		return fake.GenerateCredentialsStub(ctx, instanceID, bindingID)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fake.generateCredentialsReturns.result1, fake.generateCredentialsReturns.result2
-}
-
-func (fake *FakeProvider) GenerateCredentialsCallCount() int {
-	fake.generateCredentialsMutex.RLock()
-	defer fake.generateCredentialsMutex.RUnlock()
-	return len(fake.generateCredentialsArgsForCall)
-}
-
-func (fake *FakeProvider) GenerateCredentialsArgsForCall(i int) (context.Context, string, string) {
-	fake.generateCredentialsMutex.RLock()
-	defer fake.generateCredentialsMutex.RUnlock()
-	return fake.generateCredentialsArgsForCall[i].ctx, fake.generateCredentialsArgsForCall[i].instanceID, fake.generateCredentialsArgsForCall[i].bindingID
-}
-
-func (fake *FakeProvider) GenerateCredentialsReturns(result1 *providers.Credentials, result2 error) {
-	fake.GenerateCredentialsStub = nil
-	fake.generateCredentialsReturns = struct {
-		result1 *providers.Credentials
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeProvider) GenerateCredentialsReturnsOnCall(i int, result1 *providers.Credentials, result2 error) {
-	fake.GenerateCredentialsStub = nil
-	if fake.generateCredentialsReturnsOnCall == nil {
-		fake.generateCredentialsReturnsOnCall = make(map[int]struct {
-			result1 *providers.Credentials
-			result2 error
-		})
-	}
-	fake.generateCredentialsReturnsOnCall[i] = struct {
-		result1 *providers.Credentials
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeProvider) RevokeCredentials(ctx context.Context, instanceID string, bindingID string) error {
-	fake.revokeCredentialsMutex.Lock()
-	ret, specificReturn := fake.revokeCredentialsReturnsOnCall[len(fake.revokeCredentialsArgsForCall)]
-	fake.revokeCredentialsArgsForCall = append(fake.revokeCredentialsArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-		bindingID  string
-	}{ctx, instanceID, bindingID})
-	fake.recordInvocation("RevokeCredentials", []interface{}{ctx, instanceID, bindingID})
-	fake.revokeCredentialsMutex.Unlock()
-	if fake.RevokeCredentialsStub != nil {
-		return fake.RevokeCredentialsStub(ctx, instanceID, bindingID)
+func (fake *FakeProvider) Provision(arg1 context.Context, arg2 string, arg3 providers.ProvisionParameters) error {
+	fake.provisionMutex.Lock()
+	ret, specificReturn := fake.provisionReturnsOnCall[len(fake.provisionArgsForCall)]
+	fake.provisionArgsForCall = append(fake.provisionArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 providers.ProvisionParameters
+	}{arg1, arg2, arg3})
+	stub := fake.ProvisionStub
+	fakeReturns := fake.provisionReturns
+	fake.recordInvocation("Provision", []interface{}{arg1, arg2, arg3})
+	fake.provisionMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	return fake.revokeCredentialsReturns.result1
+	return fakeReturns.result1
+}
+
+func (fake *FakeProvider) ProvisionCallCount() int {
+	fake.provisionMutex.RLock()
+	defer fake.provisionMutex.RUnlock()
+	return len(fake.provisionArgsForCall)
+}
+
+func (fake *FakeProvider) ProvisionCalls(stub func(context.Context, string, providers.ProvisionParameters) error) {
+	fake.provisionMutex.Lock()
+	defer fake.provisionMutex.Unlock()
+	fake.ProvisionStub = stub
+}
+
+func (fake *FakeProvider) ProvisionArgsForCall(i int) (context.Context, string, providers.ProvisionParameters) {
+	fake.provisionMutex.RLock()
+	defer fake.provisionMutex.RUnlock()
+	argsForCall := fake.provisionArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeProvider) ProvisionReturns(result1 error) {
+	fake.provisionMutex.Lock()
+	defer fake.provisionMutex.Unlock()
+	fake.ProvisionStub = nil
+	fake.provisionReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) ProvisionReturnsOnCall(i int, result1 error) {
+	fake.provisionMutex.Lock()
+	defer fake.provisionMutex.Unlock()
+	fake.ProvisionStub = nil
+	if fake.provisionReturnsOnCall == nil {
+		fake.provisionReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.provisionReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) RevokeCredentials(arg1 context.Context, arg2 string, arg3 string) error {
+	fake.revokeCredentialsMutex.Lock()
+	ret, specificReturn := fake.revokeCredentialsReturnsOnCall[len(fake.revokeCredentialsArgsForCall)]
+	fake.revokeCredentialsArgsForCall = append(fake.revokeCredentialsArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 string
+	}{arg1, arg2, arg3})
+	stub := fake.RevokeCredentialsStub
+	fakeReturns := fake.revokeCredentialsReturns
+	fake.recordInvocation("RevokeCredentials", []interface{}{arg1, arg2, arg3})
+	fake.revokeCredentialsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
 }
 
 func (fake *FakeProvider) RevokeCredentialsCallCount() int {
@@ -405,13 +536,22 @@ func (fake *FakeProvider) RevokeCredentialsCallCount() int {
 	return len(fake.revokeCredentialsArgsForCall)
 }
 
+func (fake *FakeProvider) RevokeCredentialsCalls(stub func(context.Context, string, string) error) {
+	fake.revokeCredentialsMutex.Lock()
+	defer fake.revokeCredentialsMutex.Unlock()
+	fake.RevokeCredentialsStub = stub
+}
+
 func (fake *FakeProvider) RevokeCredentialsArgsForCall(i int) (context.Context, string, string) {
 	fake.revokeCredentialsMutex.RLock()
 	defer fake.revokeCredentialsMutex.RUnlock()
-	return fake.revokeCredentialsArgsForCall[i].ctx, fake.revokeCredentialsArgsForCall[i].instanceID, fake.revokeCredentialsArgsForCall[i].bindingID
+	argsForCall := fake.revokeCredentialsArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
 func (fake *FakeProvider) RevokeCredentialsReturns(result1 error) {
+	fake.revokeCredentialsMutex.Lock()
+	defer fake.revokeCredentialsMutex.Unlock()
 	fake.RevokeCredentialsStub = nil
 	fake.revokeCredentialsReturns = struct {
 		result1 error
@@ -419,6 +559,8 @@ func (fake *FakeProvider) RevokeCredentialsReturns(result1 error) {
 }
 
 func (fake *FakeProvider) RevokeCredentialsReturnsOnCall(i int, result1 error) {
+	fake.revokeCredentialsMutex.Lock()
+	defer fake.revokeCredentialsMutex.Unlock()
 	fake.RevokeCredentialsStub = nil
 	if fake.revokeCredentialsReturnsOnCall == nil {
 		fake.revokeCredentialsReturnsOnCall = make(map[int]struct {
@@ -430,126 +572,88 @@ func (fake *FakeProvider) RevokeCredentialsReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeProvider) DeleteCacheParameterGroup(ctx context.Context, instanceID string) error {
-	fake.deleteCacheParameterGroupMutex.Lock()
-	ret, specificReturn := fake.deleteCacheParameterGroupReturnsOnCall[len(fake.deleteCacheParameterGroupArgsForCall)]
-	fake.deleteCacheParameterGroupArgsForCall = append(fake.deleteCacheParameterGroupArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-	}{ctx, instanceID})
-	fake.recordInvocation("DeleteCacheParameterGroup", []interface{}{ctx, instanceID})
-	fake.deleteCacheParameterGroupMutex.Unlock()
-	if fake.DeleteCacheParameterGroupStub != nil {
-		return fake.DeleteCacheParameterGroupStub(ctx, instanceID)
+func (fake *FakeProvider) Update(arg1 context.Context, arg2 string, arg3 providers.UpdateParameters) error {
+	fake.updateMutex.Lock()
+	ret, specificReturn := fake.updateReturnsOnCall[len(fake.updateArgsForCall)]
+	fake.updateArgsForCall = append(fake.updateArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 providers.UpdateParameters
+	}{arg1, arg2, arg3})
+	stub := fake.UpdateStub
+	fakeReturns := fake.updateReturns
+	fake.recordInvocation("Update", []interface{}{arg1, arg2, arg3})
+	fake.updateMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	return fake.deleteCacheParameterGroupReturns.result1
+	return fakeReturns.result1
 }
 
-func (fake *FakeProvider) DeleteCacheParameterGroupCallCount() int {
-	fake.deleteCacheParameterGroupMutex.RLock()
-	defer fake.deleteCacheParameterGroupMutex.RUnlock()
-	return len(fake.deleteCacheParameterGroupArgsForCall)
+func (fake *FakeProvider) UpdateCallCount() int {
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
+	return len(fake.updateArgsForCall)
 }
 
-func (fake *FakeProvider) DeleteCacheParameterGroupArgsForCall(i int) (context.Context, string) {
-	fake.deleteCacheParameterGroupMutex.RLock()
-	defer fake.deleteCacheParameterGroupMutex.RUnlock()
-	return fake.deleteCacheParameterGroupArgsForCall[i].ctx, fake.deleteCacheParameterGroupArgsForCall[i].instanceID
+func (fake *FakeProvider) UpdateCalls(stub func(context.Context, string, providers.UpdateParameters) error) {
+	fake.updateMutex.Lock()
+	defer fake.updateMutex.Unlock()
+	fake.UpdateStub = stub
 }
 
-func (fake *FakeProvider) DeleteCacheParameterGroupReturns(result1 error) {
-	fake.DeleteCacheParameterGroupStub = nil
-	fake.deleteCacheParameterGroupReturns = struct {
+func (fake *FakeProvider) UpdateArgsForCall(i int) (context.Context, string, providers.UpdateParameters) {
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
+	argsForCall := fake.updateArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeProvider) UpdateReturns(result1 error) {
+	fake.updateMutex.Lock()
+	defer fake.updateMutex.Unlock()
+	fake.UpdateStub = nil
+	fake.updateReturns = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeProvider) DeleteCacheParameterGroupReturnsOnCall(i int, result1 error) {
-	fake.DeleteCacheParameterGroupStub = nil
-	if fake.deleteCacheParameterGroupReturnsOnCall == nil {
-		fake.deleteCacheParameterGroupReturnsOnCall = make(map[int]struct {
+func (fake *FakeProvider) UpdateReturnsOnCall(i int, result1 error) {
+	fake.updateMutex.Lock()
+	defer fake.updateMutex.Unlock()
+	fake.UpdateStub = nil
+	if fake.updateReturnsOnCall == nil {
+		fake.updateReturnsOnCall = make(map[int]struct {
 			result1 error
 		})
 	}
-	fake.deleteCacheParameterGroupReturnsOnCall[i] = struct {
+	fake.updateReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
-}
-
-func (fake *FakeProvider) FindSnapshots(ctx context.Context, instanceID string) ([]providers.SnapshotInfo, error) {
-	fake.findSnapshotsMutex.Lock()
-	ret, specificReturn := fake.findSnapshotsReturnsOnCall[len(fake.findSnapshotsArgsForCall)]
-	fake.findSnapshotsArgsForCall = append(fake.findSnapshotsArgsForCall, struct {
-		ctx        context.Context
-		instanceID string
-	}{ctx, instanceID})
-	fake.recordInvocation("FindSnapshots", []interface{}{ctx, instanceID})
-	fake.findSnapshotsMutex.Unlock()
-	if fake.FindSnapshotsStub != nil {
-		return fake.FindSnapshotsStub(ctx, instanceID)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fake.findSnapshotsReturns.result1, fake.findSnapshotsReturns.result2
-}
-
-func (fake *FakeProvider) FindSnapshotsCallCount() int {
-	fake.findSnapshotsMutex.RLock()
-	defer fake.findSnapshotsMutex.RUnlock()
-	return len(fake.findSnapshotsArgsForCall)
-}
-
-func (fake *FakeProvider) FindSnapshotsArgsForCall(i int) (context.Context, string) {
-	fake.findSnapshotsMutex.RLock()
-	defer fake.findSnapshotsMutex.RUnlock()
-	return fake.findSnapshotsArgsForCall[i].ctx, fake.findSnapshotsArgsForCall[i].instanceID
-}
-
-func (fake *FakeProvider) FindSnapshotsReturns(result1 []providers.SnapshotInfo, result2 error) {
-	fake.FindSnapshotsStub = nil
-	fake.findSnapshotsReturns = struct {
-		result1 []providers.SnapshotInfo
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeProvider) FindSnapshotsReturnsOnCall(i int, result1 []providers.SnapshotInfo, result2 error) {
-	fake.FindSnapshotsStub = nil
-	if fake.findSnapshotsReturnsOnCall == nil {
-		fake.findSnapshotsReturnsOnCall = make(map[int]struct {
-			result1 []providers.SnapshotInfo
-			result2 error
-		})
-	}
-	fake.findSnapshotsReturnsOnCall[i] = struct {
-		result1 []providers.SnapshotInfo
-		result2 error
-	}{result1, result2}
 }
 
 func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.provisionMutex.RLock()
-	defer fake.provisionMutex.RUnlock()
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
-	fake.deprovisionMutex.RLock()
-	defer fake.deprovisionMutex.RUnlock()
-	fake.getStateMutex.RLock()
-	defer fake.getStateMutex.RUnlock()
-	fake.generateCredentialsMutex.RLock()
-	defer fake.generateCredentialsMutex.RUnlock()
-	fake.revokeCredentialsMutex.RLock()
-	defer fake.revokeCredentialsMutex.RUnlock()
 	fake.deleteCacheParameterGroupMutex.RLock()
 	defer fake.deleteCacheParameterGroupMutex.RUnlock()
+	fake.deprovisionMutex.RLock()
+	defer fake.deprovisionMutex.RUnlock()
 	fake.findSnapshotsMutex.RLock()
 	defer fake.findSnapshotsMutex.RUnlock()
+	fake.generateCredentialsMutex.RLock()
+	defer fake.generateCredentialsMutex.RUnlock()
+	fake.getStateMutex.RLock()
+	defer fake.getStateMutex.RUnlock()
+	fake.provisionMutex.RLock()
+	defer fake.provisionMutex.RUnlock()
+	fake.revokeCredentialsMutex.RLock()
+	defer fake.revokeCredentialsMutex.RUnlock()
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

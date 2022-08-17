@@ -35,6 +35,7 @@
 			"shard_count": 1,
 			"snapshot_retention_limit": 1,
 			"automatic_failover_enabled": true,
+			"multi_az_enabled": false,
 			"parameters": {
 				"cluster-enabled": "yes",
 				"maxmemory-policy": "volatile-lru",

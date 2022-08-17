@@ -132,11 +132,12 @@ func (p *RedisProvider) Provision(ctx context.Context, instanceID string, params
 	}
 
 	input := &elasticache.CreateReplicationGroupInput{
-		Tags: []*elasticache.Tag{},
+		Tags:                        []*elasticache.Tag{},
 		AtRestEncryptionEnabled:     aws.Bool(true),
 		TransitEncryptionEnabled:    aws.Bool(true),
 		AuthToken:                   aws.String(authToken),
 		AutomaticFailoverEnabled:    aws.Bool(params.AutomaticFailoverEnabled),
+		MultiAZEnabled:              aws.Bool(params.MultiAZEnabled),
 		CacheNodeType:               aws.String(params.InstanceType),
 		CacheParameterGroupName:     aws.String(cacheParameterGroupName),
 		SecurityGroupIds:            aws.StringSlice(params.SecurityGroupIds),
@@ -359,7 +360,7 @@ func (p *RedisProvider) GenerateCredentials(ctx context.Context, instanceID, bin
 		Host:   fmt.Sprintf("%s:%d", host, port),
 		// Provide an empty string for username, it's not used for Redis 5, and breaks libraries which support Redis 6 too.
 		// TODO: Revisit this with Redis 6 support?
-		User:   url.UserPassword("", authToken),
+		User: url.UserPassword("", authToken),
 	}
 	return &providers.Credentials{
 		Host:       host,

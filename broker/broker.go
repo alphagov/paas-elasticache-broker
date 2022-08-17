@@ -150,8 +150,10 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		SnapshotRetentionLimit:     planConfig.SnapshotRetentionLimit,
 		RestoreFromSnapshot:        restoreFromSnapshotName,
 		AutomaticFailoverEnabled:   planConfig.AutomaticFailoverEnabled,
-		Description:                "Cloud Foundry service",
-		Parameters:                 params,
+		MultiAZEnabled:             planConfig.MultiAZEnabled,
+
+		Description: "Cloud Foundry service",
+		Parameters:  params,
 		Tags: map[string]string{
 			"created-by":        b.config.BrokerName,
 			"service-id":        details.ServiceID,

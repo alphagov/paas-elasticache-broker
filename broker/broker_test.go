@@ -48,6 +48,7 @@ var _ = Describe("Broker", func() {
 						"reserved-memory":  "0",
 					},
 					AutomaticFailoverEnabled:  true,
+					MultiAZEnabled:            true,
 					Engine:                    "redis",
 					EngineVersion:             "4.0.10",
 					CacheParameterGroupFamily: "default.redis4.0",
@@ -135,6 +136,7 @@ var _ = Describe("Broker", func() {
 				ShardCount:                 1,
 				SnapshotRetentionLimit:     0,
 				AutomaticFailoverEnabled:   validConfig.PlanConfigs["plan1"].AutomaticFailoverEnabled,
+				MultiAZEnabled:             validConfig.PlanConfigs["plan1"].MultiAZEnabled,
 				Description:                "Cloud Foundry service",
 				Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
 				Tags: map[string]string{
@@ -343,6 +345,7 @@ var _ = Describe("Broker", func() {
 					SnapshotRetentionLimit:     0,
 					RestoreFromSnapshot:        &expectedRestoreFromSnapshotName,
 					AutomaticFailoverEnabled:   true,
+					MultiAZEnabled:             true,
 					Description:                "Cloud Foundry service",
 					Parameters:                 validConfig.PlanConfigs["plan1"].Parameters,
 					Tags: map[string]string{

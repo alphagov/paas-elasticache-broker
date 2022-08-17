@@ -22,6 +22,7 @@ type PlanConfig struct {
 	ShardCount                int64             `json:"shard_count"`
 	SnapshotRetentionLimit    int64             `json:"snapshot_retention_limit"`
 	AutomaticFailoverEnabled  bool              `json:"automatic_failover_enabled"`
+	MultiAZEnabled            bool              `json:"multi_az_enabled"`
 	Parameters                map[string]string `json:"parameters"`
 	Engine                    string            `json:"engine"`
 	EngineVersion             string            `json:"engine_version"`
