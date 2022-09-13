@@ -1,7 +1,9 @@
 {
 	"cluster_name_prefix": "cf-broker-test",
 	"cache_subnet_group_name": "test-subnet",
-	"vpc_security_group_ids": ["test-security-group-id"],
+	"vpc_security_group_ids": [
+		"test-security-group-id"
+	],
 	"region": "eu-west-1",
 	"log_level": "DEBUG",
 	"username": "username",
@@ -16,6 +18,7 @@
 				"name": "redis",
 				"description": "AWS ElastiCache Redis service",
 				"plan_updateable": true,
+				"instances_retrievable": true,
 				"plans": [
 					{
 						"id": "94767b71-2b9c-4960-a4f8-77b81a96f7e0",
@@ -27,7 +30,6 @@
 			}
 		]
 	},
-
 	"plan_configs": {
 		"94767b71-2b9c-4960-a4f8-77b81a96f7e0": {
 			"instance_type": "cache.t2.micro",

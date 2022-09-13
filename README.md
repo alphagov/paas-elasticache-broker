@@ -61,6 +61,7 @@ Broker catalog example:
       "name": "redis",
       "description": "AWS ElastiCache Redis service",
       "plan_updateable": true,
+      "instances_retrievable": true,
       "bindable": true,
       "plans": [
         {

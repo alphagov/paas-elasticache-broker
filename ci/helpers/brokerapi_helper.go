@@ -280,6 +280,16 @@ func (b *BrokerAPIClient) GetLastOperationState(instanceID, serviceID, planID, o
 	}
 }
 
+func (b *BrokerAPIClient) DoGetInstanceRequest(instanceID string) (*http.Response, error) {
+	path := fmt.Sprintf("/v2/service_instances/%s", instanceID)
+
+	return b.doRequest(
+		"GET",
+		path,
+		nil,
+	)
+}
+
 func (b *BrokerAPIClient) DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID string) (*http.Response, error) {
 	path := fmt.Sprintf("/v2/service_instances/%s/service_bindings/%s", instanceID, bindingID)
 

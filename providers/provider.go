@@ -52,6 +52,11 @@ type SnapshotInfo struct {
 	Tags       map[string]string
 }
 
+type InstanceParameters struct {
+	MaintenanceWindow string `json:"maintenance_window"`
+	DailyBackupWindow string `json:"daily_backup_window"`
+}
+
 // Provider is a general interface to implement the broker's functionality with a specific provider
 //
 //go:generate counterfeiter -o mocks/provider.go . Provider
@@ -60,6 +65,8 @@ type Provider interface {
 	Update(ctx context.Context, instanceID string, params UpdateParameters) error
 	Deprovision(ctx context.Context, instanceID string, params DeprovisionParameters) error
 	GetState(ctx context.Context, instanceID string) (ServiceState, string, error)
+	GetInstanceParameters(ctx context.Context, instanceID string) (InstanceParameters, error)
+	GetInstanceTags(ctx context.Context, instanceID string) (map[string]string, error)
 	GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*Credentials, error)
 	RevokeCredentials(ctx context.Context, instanceID, bindingID string) error
 	DeleteCacheParameterGroup(ctx context.Context, instanceID string) error
