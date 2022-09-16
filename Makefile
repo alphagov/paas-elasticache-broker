@@ -3,7 +3,7 @@
 test: unit integration
 
 unit:
-	ginkgo -r --skip-package=ci
+	go run github.com/onsi/ginkgo/v2/ginkgo -r --skip-package=ci
 
 integration:
-	ginkgo -v -r ci/blackbox
+	go run github.com/onsi/ginkgo/v2/ginkgo -v -r ci/blackbox
