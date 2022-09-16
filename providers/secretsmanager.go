@@ -8,7 +8,7 @@ import (
 
 // SecretsManager is a partially extracted interface from the AWS Elasticache SDK
 //
-//go:generate counterfeiter -o mocks/secretsmanager.go . SecretsManager
+//counterfeiter:generate -o mocks/secretsmanager.go . SecretsManager
 type SecretsManager interface {
 	CreateSecretWithContext(ctx aws.Context, input *secretsmanager.CreateSecretInput, opts ...request.Option) (*secretsmanager.CreateSecretOutput, error)
 	GetSecretValueWithContext(ctx aws.Context, input *secretsmanager.GetSecretValueInput, opts ...request.Option) (*secretsmanager.GetSecretValueOutput, error)
