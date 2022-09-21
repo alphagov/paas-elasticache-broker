@@ -63,6 +63,34 @@ type FakeProvider struct {
 		result1 *providers.Credentials
 		result2 error
 	}
+	GetInstanceParametersStub        func(context.Context, string) (providers.InstanceParameters, error)
+	getInstanceParametersMutex       sync.RWMutex
+	getInstanceParametersArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	getInstanceParametersReturns struct {
+		result1 providers.InstanceParameters
+		result2 error
+	}
+	getInstanceParametersReturnsOnCall map[int]struct {
+		result1 providers.InstanceParameters
+		result2 error
+	}
+	GetInstanceTagsStub        func(context.Context, string) (map[string]string, error)
+	getInstanceTagsMutex       sync.RWMutex
+	getInstanceTagsArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	getInstanceTagsReturns struct {
+		result1 map[string]string
+		result2 error
+	}
+	getInstanceTagsReturnsOnCall map[int]struct {
+		result1 map[string]string
+		result2 error
+	}
 	GetStateStub        func(context.Context, string) (providers.ServiceState, string, error)
 	getStateMutex       sync.RWMutex
 	getStateArgsForCall []struct {
@@ -378,6 +406,136 @@ func (fake *FakeProvider) GenerateCredentialsReturnsOnCall(i int, result1 *provi
 	}{result1, result2}
 }
 
+func (fake *FakeProvider) GetInstanceParameters(arg1 context.Context, arg2 string) (providers.InstanceParameters, error) {
+	fake.getInstanceParametersMutex.Lock()
+	ret, specificReturn := fake.getInstanceParametersReturnsOnCall[len(fake.getInstanceParametersArgsForCall)]
+	fake.getInstanceParametersArgsForCall = append(fake.getInstanceParametersArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.GetInstanceParametersStub
+	fakeReturns := fake.getInstanceParametersReturns
+	fake.recordInvocation("GetInstanceParameters", []interface{}{arg1, arg2})
+	fake.getInstanceParametersMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeProvider) GetInstanceParametersCallCount() int {
+	fake.getInstanceParametersMutex.RLock()
+	defer fake.getInstanceParametersMutex.RUnlock()
+	return len(fake.getInstanceParametersArgsForCall)
+}
+
+func (fake *FakeProvider) GetInstanceParametersCalls(stub func(context.Context, string) (providers.InstanceParameters, error)) {
+	fake.getInstanceParametersMutex.Lock()
+	defer fake.getInstanceParametersMutex.Unlock()
+	fake.GetInstanceParametersStub = stub
+}
+
+func (fake *FakeProvider) GetInstanceParametersArgsForCall(i int) (context.Context, string) {
+	fake.getInstanceParametersMutex.RLock()
+	defer fake.getInstanceParametersMutex.RUnlock()
+	argsForCall := fake.getInstanceParametersArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeProvider) GetInstanceParametersReturns(result1 providers.InstanceParameters, result2 error) {
+	fake.getInstanceParametersMutex.Lock()
+	defer fake.getInstanceParametersMutex.Unlock()
+	fake.GetInstanceParametersStub = nil
+	fake.getInstanceParametersReturns = struct {
+		result1 providers.InstanceParameters
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GetInstanceParametersReturnsOnCall(i int, result1 providers.InstanceParameters, result2 error) {
+	fake.getInstanceParametersMutex.Lock()
+	defer fake.getInstanceParametersMutex.Unlock()
+	fake.GetInstanceParametersStub = nil
+	if fake.getInstanceParametersReturnsOnCall == nil {
+		fake.getInstanceParametersReturnsOnCall = make(map[int]struct {
+			result1 providers.InstanceParameters
+			result2 error
+		})
+	}
+	fake.getInstanceParametersReturnsOnCall[i] = struct {
+		result1 providers.InstanceParameters
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GetInstanceTags(arg1 context.Context, arg2 string) (map[string]string, error) {
+	fake.getInstanceTagsMutex.Lock()
+	ret, specificReturn := fake.getInstanceTagsReturnsOnCall[len(fake.getInstanceTagsArgsForCall)]
+	fake.getInstanceTagsArgsForCall = append(fake.getInstanceTagsArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.GetInstanceTagsStub
+	fakeReturns := fake.getInstanceTagsReturns
+	fake.recordInvocation("GetInstanceTags", []interface{}{arg1, arg2})
+	fake.getInstanceTagsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeProvider) GetInstanceTagsCallCount() int {
+	fake.getInstanceTagsMutex.RLock()
+	defer fake.getInstanceTagsMutex.RUnlock()
+	return len(fake.getInstanceTagsArgsForCall)
+}
+
+func (fake *FakeProvider) GetInstanceTagsCalls(stub func(context.Context, string) (map[string]string, error)) {
+	fake.getInstanceTagsMutex.Lock()
+	defer fake.getInstanceTagsMutex.Unlock()
+	fake.GetInstanceTagsStub = stub
+}
+
+func (fake *FakeProvider) GetInstanceTagsArgsForCall(i int) (context.Context, string) {
+	fake.getInstanceTagsMutex.RLock()
+	defer fake.getInstanceTagsMutex.RUnlock()
+	argsForCall := fake.getInstanceTagsArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeProvider) GetInstanceTagsReturns(result1 map[string]string, result2 error) {
+	fake.getInstanceTagsMutex.Lock()
+	defer fake.getInstanceTagsMutex.Unlock()
+	fake.GetInstanceTagsStub = nil
+	fake.getInstanceTagsReturns = struct {
+		result1 map[string]string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) GetInstanceTagsReturnsOnCall(i int, result1 map[string]string, result2 error) {
+	fake.getInstanceTagsMutex.Lock()
+	defer fake.getInstanceTagsMutex.Unlock()
+	fake.GetInstanceTagsStub = nil
+	if fake.getInstanceTagsReturnsOnCall == nil {
+		fake.getInstanceTagsReturnsOnCall = make(map[int]struct {
+			result1 map[string]string
+			result2 error
+		})
+	}
+	fake.getInstanceTagsReturnsOnCall[i] = struct {
+		result1 map[string]string
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeProvider) GetState(arg1 context.Context, arg2 string) (providers.ServiceState, string, error) {
 	fake.getStateMutex.Lock()
 	ret, specificReturn := fake.getStateReturnsOnCall[len(fake.getStateArgsForCall)]
@@ -646,6 +804,10 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.findSnapshotsMutex.RUnlock()
 	fake.generateCredentialsMutex.RLock()
 	defer fake.generateCredentialsMutex.RUnlock()
+	fake.getInstanceParametersMutex.RLock()
+	defer fake.getInstanceParametersMutex.RUnlock()
+	fake.getInstanceTagsMutex.RLock()
+	defer fake.getInstanceTagsMutex.RUnlock()
 	fake.getStateMutex.RLock()
 	defer fake.getStateMutex.RUnlock()
 	fake.provisionMutex.RLock()

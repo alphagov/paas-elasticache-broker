@@ -1,12 +1,15 @@
 package integration_aws_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	redisclient "github.com/garyburd/redigo/redis"
+	"github.com/pivotal-cf/brokerapi"
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/alphagov/paas-elasticache-broker/ci/helpers"
@@ -114,6 +117,24 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 						Value: aws.String(instanceID),
 					},
 				))
+			})
+
+			By("checking that the Maintenance Window can be retrieved", func() {
+				serviceInfo, err := brokerAPIClient.DoGetInstanceRequest(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				body, err := ioutil.ReadAll(serviceInfo.Body)
+				Expect(err).ToNot(HaveOccurred())
+				// get json from response body
+				var serviceInfoJSON brokerapi.GetInstanceDetailsSpec
+				err = json.Unmarshal(body, &serviceInfoJSON)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(serviceInfoJSON.ServiceID).To(Equal(serviceID))
+				Expect(serviceInfoJSON.PlanID).To(Equal(planID))
+				serviceParams := serviceInfoJSON.Parameters.(map[string]interface{})
+				Expect(serviceParams["maintenance_window"]).ToNot(BeNil())
+				Expect(serviceParams["maintenance_window"]).To(MatchRegexp(`^[a-z]{3}:\d{2}:\d{2}\-[a-z]{3}:\d{2}:\d{2}$`))
+				Expect(serviceParams["daily_backup_window"]).ToNot(BeNil())
+				Expect(serviceParams["daily_backup_window"]).To(MatchRegexp(`^\d{2}:\d{2}-\d{2}:\d{2}$`))
 			})
 
 			By("checking that the cache parameter group has been set", func() {

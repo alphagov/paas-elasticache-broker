@@ -840,4 +840,34 @@ var _ = Describe("Broker", func() {
 			Expect(err).To(MatchError(unbindErr))
 		})
 	})
+	Describe("GetInstance", func() {
+		// I feel a bit like I'm testing my mocks here...
+		It("returns the instance details", func() {
+			fakeProvider := &mocks.FakeProvider{}
+			fakeProvider.GetInstanceParametersReturnsOnCall(0, providers.InstanceParameters{
+				MaintenanceWindow: "1234",
+				DailyBackupWindow: "5678",
+			}, nil)
+			fakeProvider.GetInstanceTagsReturnsOnCall(0, map[string]string{"service-id": "test-service-id", "plan-id": "test-plan-id"}, nil)
+
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+			instance, err := b.GetInstance(context.Background(), "test-instance")
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(instance).To(Equal(brokerapi.GetInstanceDetailsSpec{
+				ServiceID:    "test-service-id",
+				PlanID:       "test-plan-id",
+				DashboardURL: "",
+				Parameters: providers.InstanceParameters{
+					MaintenanceWindow: "1234",
+					DailyBackupWindow: "5678",
+				},
+			}))
+
+			Expect(fakeProvider.GetInstanceParametersCallCount()).To(Equal(1))
+			passedCtx, passedInstanceId := fakeProvider.GetInstanceParametersArgsForCall(0)
+			Expect(passedCtx).To(Equal(context.Background()))
+			Expect(passedInstanceId).To(Equal("test-instance"))
+		})
+	})
 })

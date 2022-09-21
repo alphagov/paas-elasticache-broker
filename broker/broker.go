@@ -58,8 +58,18 @@ func (b *Broker) GetBinding(ctx context.Context, first, second string) (brokerap
 	return brokerapi.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
 }
 
-func (b *Broker) GetInstance(ctx context.Context, first string) (brokerapi.GetInstanceDetailsSpec, error) {
-	return brokerapi.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
+func (b *Broker) GetInstance(ctx context.Context, instanceID string) (brokerapi.GetInstanceDetailsSpec, error) {
+	instanceParameters, err := b.provider.GetInstanceParameters(ctx, instanceID)
+	instanceTags, err := b.provider.GetInstanceTags(ctx, instanceID)
+	if err != nil {
+		return brokerapi.GetInstanceDetailsSpec{}, err
+	}
+	return brokerapi.GetInstanceDetailsSpec{
+		ServiceID:    instanceTags["service-id"],
+		PlanID:       instanceTags["plan-id"],
+		DashboardURL: "",
+		Parameters:   instanceParameters,
+	}, nil
 }
 
 func (b *Broker) LastBindingOperation(ctx context.Context, first, second string, pollDetails brokerapi.PollDetails) (brokerapi.LastOperation, error) {

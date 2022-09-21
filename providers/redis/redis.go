@@ -475,3 +475,45 @@ func GenerateReplicationGroupName(instanceID string) string {
 func GenerateAuthToken() string {
 	return RandomAlphaNum(PasswordLength)
 }
+
+func (p *RedisProvider) replicationGroupARN(replicationGroupID string) string {
+	return fmt.Sprintf("arn:%s:elasticache:%s:%s:replicationgroup:%s", p.awsPartition, p.awsRegion, p.awsAccountID, replicationGroupID)
+}
+
+func (p *RedisProvider) GetInstanceTags(ctx context.Context, instanceID string) (map[string]string, error) {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	awsTags, err := p.elastiCache.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
+		ResourceName: aws.String(p.replicationGroupARN(replicationGroupID)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tagsValues(awsTags.TagList), nil
+}
+
+func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID string) (providers.InstanceParameters, error) {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
+	instanceParameters := providers.InstanceParameters{}
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == elasticache.ErrCodeReplicationGroupNotFoundFault {
+				return instanceParameters, fmt.Errorf("Replication group does not exist: %s", replicationGroupID)
+			}
+		}
+		return instanceParameters, err
+	}
+	if len(replicationGroup.MemberClusters) > 0 && replicationGroup.MemberClusters[0] != nil {
+		cacheClusterId := replicationGroup.MemberClusters[0]
+		if cacheCluster, err := p.describeCacheCluster(ctx, *cacheClusterId); err == nil {
+			instanceParameters.MaintenanceWindow = *cacheCluster.PreferredMaintenanceWindow
+		}
+		if replicationGroup.SnapshotWindow != nil {
+			instanceParameters.DailyBackupWindow = *replicationGroup.SnapshotWindow
+		}
+
+	} else {
+		return instanceParameters, fmt.Errorf("Replication group does not have any member clusters: %s", replicationGroupID)
+	}
+	return instanceParameters, nil
+}
