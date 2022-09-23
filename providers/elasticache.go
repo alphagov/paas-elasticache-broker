@@ -18,6 +18,7 @@ type ElastiCache interface {
 	DescribeReplicationGroupsWithContext(ctx aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error)
 	DescribeCacheClustersWithContext(ctx aws.Context, input *elasticache.DescribeCacheClustersInput, opts ...request.Option) (*elasticache.DescribeCacheClustersOutput, error)
 	DescribeCacheParametersWithContext(ctx aws.Context, input *elasticache.DescribeCacheParametersInput, opts ...request.Option) (*elasticache.DescribeCacheParametersOutput, error)
+	ModifyReplicationGroupWithContext(ctx aws.Context, input *elasticache.ModifyReplicationGroupInput, opts ...request.Option) (*elasticache.ModifyReplicationGroupOutput, error)
 	ModifyCacheParameterGroupWithContext(ctx aws.Context, input *elasticache.ModifyCacheParameterGroupInput, opts ...request.Option) (*elasticache.CacheParameterGroupNameMessage, error)
 	DescribeSnapshotsPagesWithContext(ctx aws.Context, input *elasticache.DescribeSnapshotsInput, fn func(*elasticache.DescribeSnapshotsOutput, bool) bool, opts ...request.Option) error
 	ListTagsForResourceWithContext(ctx aws.Context, input *elasticache.ListTagsForResourceInput, opts ...request.Option) (*elasticache.TagListMessage, error)

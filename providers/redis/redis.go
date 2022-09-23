@@ -74,6 +74,18 @@ func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicati
 	return p.modifyCacheParameterGroup(ctx, replicationGroupID, params.Parameters)
 }
 
+func (p *RedisProvider) modifyReplicationGroup(ctx context.Context, replicationGroupID string, preferredMaintenanceWindow string) error {
+	if len(preferredMaintenanceWindow) == 0 {
+		return nil
+	}
+
+	_, err := p.elastiCache.ModifyReplicationGroupWithContext(ctx, &elasticache.ModifyReplicationGroupInput{
+		PreferredMaintenanceWindow: aws.String(preferredMaintenanceWindow),
+		ReplicationGroupId:         aws.String(replicationGroupID),
+	})
+	return err
+}
+
 func (p *RedisProvider) modifyCacheParameterGroup(ctx context.Context, replicationGroupID string, params map[string]string) error {
 	if len(params) == 0 {
 		return nil
@@ -109,7 +121,12 @@ func (p *RedisProvider) DeleteCacheParameterGroup(ctx context.Context, instanceI
 	return err
 }
 
-func (p *RedisProvider) Update(ctx context.Context, instanceID string, params providers.UpdateParameters) error {
+func (p *RedisProvider) UpdateReplicationGroup(ctx context.Context, instanceID string, params providers.UpdateReplicationGroupParameters) error {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	return p.modifyReplicationGroup(ctx, replicationGroupID, params.PreferredMaintenanceWindow)
+}
+
+func (p *RedisProvider) UpdateParams(ctx context.Context, instanceID string, params providers.UpdateParamGroupParameters) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 	return p.modifyCacheParameterGroup(ctx, replicationGroupID, params.Parameters)
 }
@@ -491,10 +508,10 @@ func (p *RedisProvider) GetInstanceTags(ctx context.Context, instanceID string) 
 	return tagsValues(awsTags.TagList), nil
 }
 
-func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID string) (providers.InstanceParameters, error) {
+func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID string) (providers.ServiceParameters, error) {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
-	instanceParameters := providers.InstanceParameters{}
+	instanceParameters := providers.ServiceParameters{}
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == elasticache.ErrCodeReplicationGroupNotFoundFault {
@@ -506,10 +523,21 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 	if len(replicationGroup.MemberClusters) > 0 && replicationGroup.MemberClusters[0] != nil {
 		cacheClusterId := replicationGroup.MemberClusters[0]
 		if cacheCluster, err := p.describeCacheCluster(ctx, *cacheClusterId); err == nil {
-			instanceParameters.MaintenanceWindow = *cacheCluster.PreferredMaintenanceWindow
+			instanceParameters.PreferredMaintenanceWindow = *cacheCluster.PreferredMaintenanceWindow
 		}
 		if replicationGroup.SnapshotWindow != nil {
 			instanceParameters.DailyBackupWindow = *replicationGroup.SnapshotWindow
+		}
+		cacheParameters, err := p.describeCacheParameters(ctx, replicationGroupID)
+		if err != nil {
+			return instanceParameters, err
+		}
+		for _, param := range cacheParameters {
+			newParam := providers.CacheParameter{ParameterName: *param.ParameterName}
+			if param.ParameterValue != nil {
+				newParam.ParameterValue = *param.ParameterValue
+			}
+			instanceParameters.CacheParameters = append(instanceParameters.CacheParameters, newParam)
 		}
 
 	} else {

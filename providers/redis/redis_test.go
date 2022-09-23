@@ -1008,7 +1008,7 @@ var _ = Describe("Provider", func() {
 
 			ctx := context.Background()
 
-			err := provider.Update(ctx, instanceID, providers.UpdateParameters{
+			err := provider.UpdateParams(ctx, instanceID, providers.UpdateParamGroupParameters{
 				Parameters: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
@@ -1033,7 +1033,7 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("should not modify the cache parameter group if no params are passed", func() {
-			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+			err := provider.UpdateParams(context.Background(), "foobar", providers.UpdateParamGroupParameters{
 				Parameters: map[string]string{},
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -1045,7 +1045,7 @@ var _ = Describe("Provider", func() {
 			awsError := errors.New("some error")
 			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, awsError)
 
-			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+			err := provider.UpdateParams(context.Background(), "foobar", providers.UpdateParamGroupParameters{
 				Parameters: map[string]string{
 					"key1": "value1",
 				},
