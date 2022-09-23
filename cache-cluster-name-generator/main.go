@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/alphagov/paas-elasticache-broker/providers/redis"
 	"os"
+
+	"github.com/alphagov/paas-elasticache-broker/providers/redis"
 )
 
-func main(){
+func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Must provide a service GUID as the first argument")
 		os.Exit(1)
@@ -16,6 +17,6 @@ func main(){
 	id := os.Args[1]
 	hash := redis.GenerateReplicationGroupName(id)
 
-	fmt.Println(fmt.Sprintf("GUID: %s", id))
-	fmt.Println(fmt.Sprintf("Hash: %s", hash))
+	fmt.Printf("GUID: %s\n", id)
+	fmt.Printf("Hash: %s\n", hash)
 }

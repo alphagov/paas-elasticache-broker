@@ -22,16 +22,16 @@ var _ = Describe("Config", func() {
 			VpcSecurityGroupIds:  []string{"vpc_security_group_id"},
 			Catalog: brokerapi.CatalogResponse{
 				Services: []brokerapi.Service{
-					brokerapi.Service{
+					{
 						ID: "service1",
 						Plans: []brokerapi.ServicePlan{
-							brokerapi.ServicePlan{ID: "plan1"},
+							{ID: "plan1"},
 						},
 					},
 				},
 			},
 			PlanConfigs: map[string]PlanConfig{
-				"plan1": PlanConfig{},
+				"plan1": {},
 			},
 			KmsKeyID:           "my-kms-key",
 			SecretsManagerPath: "elasticache-broker-test",

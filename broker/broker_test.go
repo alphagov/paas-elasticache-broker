@@ -27,11 +27,11 @@ var _ = Describe("Broker", func() {
 			CacheSubnetGroupName: "cache-subnet-group-name",
 			Catalog: brokerapi.CatalogResponse{
 				Services: []brokerapi.Service{
-					brokerapi.Service{
+					{
 						ID:   "service1",
 						Name: "service1",
 						Plans: []brokerapi.ServicePlan{
-							brokerapi.ServicePlan{
+							{
 								ID:   "plan1",
 								Name: "plan1",
 							},
@@ -40,7 +40,7 @@ var _ = Describe("Broker", func() {
 				},
 			},
 			PlanConfigs: map[string]broker.PlanConfig{
-				"plan1": broker.PlanConfig{
+				"plan1": {
 					InstanceType: "t2.micro",
 					ShardCount:   1,
 					Parameters: map[string]string{
@@ -256,7 +256,7 @@ var _ = Describe("Broker", func() {
 
 				fakeProvider.FindSnapshotsReturns(
 					[]providers.SnapshotInfo{
-						providers.SnapshotInfo{
+						{
 							Name:       restoreFromSnapshotInstanceGUID + "-snapshot-name-2-day-old",
 							CreateTime: time.Now().Add(-2 * 24 * time.Hour),
 							Tags: map[string]string{
@@ -268,7 +268,7 @@ var _ = Describe("Broker", func() {
 								"instance-id":     "instanceid",
 							},
 						},
-						providers.SnapshotInfo{
+						{
 							Name:       restoreFromSnapshotInstanceGUID + "-snapshot-name-1-day-old",
 							CreateTime: time.Now().Add(-1 * 24 * time.Hour),
 							Tags: map[string]string{

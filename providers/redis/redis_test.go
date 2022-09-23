@@ -247,8 +247,8 @@ var _ = Describe("Provider", func() {
 			It("should pass them correctly", func() {
 				_, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
 				Expect(passedInput.Tags).To(ConsistOf([]*elasticache.Tag{
-					&elasticache.Tag{Key: aws.String("tag1"), Value: aws.String("tag value1")},
-					&elasticache.Tag{Key: aws.String("tag2"), Value: aws.String("tag value2")},
+					{Key: aws.String("tag1"), Value: aws.String("tag value1")},
+					{Key: aws.String("tag2"), Value: aws.String("tag value2")},
 				}))
 			})
 		})
@@ -860,11 +860,11 @@ var _ = Describe("Provider", func() {
 			mockElasticache.ListTagsForResourceWithContextReturns(
 				&elasticache.TagListMessage{
 					TagList: []*elasticache.Tag{
-						&elasticache.Tag{
+						{
 							Key:   aws.String("Tag1"),
 							Value: aws.String("Val1"),
 						},
-						&elasticache.Tag{
+						{
 							Key:   aws.String("Tag2"),
 							Value: aws.String("Val2"),
 						},
@@ -875,21 +875,21 @@ var _ = Describe("Provider", func() {
 
 			now := time.Now()
 			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
-				elasticache.DescribeSnapshotsOutput{
+				{
 					Snapshots: []*elasticache.Snapshot{
-						&elasticache.Snapshot{
+						{
 							SnapshotName: aws.String("snapshot1"),
 							NodeSnapshots: []*elasticache.NodeSnapshot{
-								&elasticache.NodeSnapshot{
+								{
 									CacheClusterId:     &instanceID,
 									SnapshotCreateTime: aws.Time(now.Add(-2 * 24 * time.Hour)),
 								},
 							},
 						},
-						&elasticache.Snapshot{
+						{
 							SnapshotName: aws.String("snapshot2"),
 							NodeSnapshots: []*elasticache.NodeSnapshot{
-								&elasticache.NodeSnapshot{
+								{
 									CacheClusterId:     &instanceID,
 									SnapshotCreateTime: aws.Time(now.Add(-1 * 24 * time.Hour)),
 								},
@@ -953,13 +953,13 @@ var _ = Describe("Provider", func() {
 
 			now := time.Now()
 			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
-				elasticache.DescribeSnapshotsOutput{
+				{
 					Snapshots: []*elasticache.Snapshot{
 
-						&elasticache.Snapshot{
+						{
 							SnapshotName: aws.String("snapshot1"),
 							NodeSnapshots: []*elasticache.NodeSnapshot{
-								&elasticache.NodeSnapshot{
+								{
 									CacheClusterId:     &instanceID,
 									SnapshotCreateTime: aws.Time(now.Add(-2 * 24 * time.Hour)),
 								},
@@ -984,9 +984,9 @@ var _ = Describe("Provider", func() {
 			instanceID := "foobar"
 
 			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
-				elasticache.DescribeSnapshotsOutput{
+				{
 					Snapshots: []*elasticache.Snapshot{
-						&elasticache.Snapshot{},
+						{},
 					},
 				},
 			}
