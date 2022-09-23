@@ -288,7 +288,7 @@ var _ = Describe("Broker", func() {
 
 		It("responds with a 500 when an unknown deprovisioning error occurs", func() {
 			instanceID := uuid.NewV4().String()
-			fakeProvider.UpdateReturns(errors.New("bad stuff"))
+			fakeProvider.UpdateParamGroupParametersReturns(errors.New("bad stuff"))
 
 			resp := DoRequest(brokerAPI, NewRequest(
 				"PATCH",

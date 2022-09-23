@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/alphagov/paas-elasticache-broker/providers"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/pivotal-cf/brokerapi"
 )
@@ -216,28 +218,30 @@ func (b *BrokerAPIClient) DeprovisionInstance(instanceID, serviceID, planID stri
 	return resp.StatusCode, provisioningResponse.Operation, nil
 }
 
-func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, orgID, spaceID, paramJSON string) (responseCode int, operation string, err error) {
+func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, orgID, spaceID, paramJSON string) (responseCode int, operation string, responseBody string, err error) {
 	resp, err := b.DoUpdateRequest(instanceID, serviceID, planID, oldPlanID, oldServiceID, orgID, spaceID, paramJSON)
 	if err != nil {
-		return 0, "", err
+		return 0, "", "", err
 	}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
+		return resp.StatusCode, "", "", err
+	}
+	bodyString := string(body)
+
 	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
-		return resp.StatusCode, "", nil
+		return resp.StatusCode, "", bodyString, nil
 	}
 
 	provisioningResponse := ProvisioningResponse{}
 
-	body, err := BodyBytes(resp)
-	if err != nil {
-		return resp.StatusCode, "", err
-	}
-
 	err = json.Unmarshal(body, &provisioningResponse)
 	if err != nil {
-		return resp.StatusCode, "", err
+		return resp.StatusCode, "", bodyString, err
 	}
 
-	return resp.StatusCode, provisioningResponse.Operation, nil
+	return resp.StatusCode, provisioningResponse.Operation, bodyString, nil
 }
 
 func (b *BrokerAPIClient) DoLastOperationRequest(instanceID, serviceID, planID, operation string) (*http.Response, error) {
@@ -357,4 +361,22 @@ func (b *BrokerAPIClient) Unbind(instanceID, serviceID, planID, bindingID string
 	}
 
 	return resp.StatusCode, nil
+}
+
+func (b *BrokerAPIClient) GetServiceParams(instanceID string) (serviceParams providers.InstanceParameters, err error) {
+	serviceInfo, err := b.DoGetInstanceRequest(instanceID)
+	if err != nil {
+		return providers.InstanceParameters{}, err
+	}
+	body, err := ioutil.ReadAll(serviceInfo.Body)
+	if err != nil {
+		return providers.InstanceParameters{}, err
+	}
+	// get json from response body
+	var serviceInfoJSON providers.InstanceDetails
+	err = json.Unmarshal(body, &serviceInfoJSON)
+	if err != nil {
+		return providers.InstanceParameters{}, err
+	}
+	return serviceInfoJSON.Parameters, nil
 }

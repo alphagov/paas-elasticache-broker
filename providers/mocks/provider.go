@@ -133,17 +133,30 @@ type FakeProvider struct {
 	revokeCredentialsReturnsOnCall map[int]struct {
 		result1 error
 	}
-	UpdateStub        func(context.Context, string, providers.UpdateParameters) error
-	updateMutex       sync.RWMutex
-	updateArgsForCall []struct {
+	UpdateParamGroupParametersStub        func(context.Context, string, providers.UpdateParamGroupParameters) error
+	updateParamGroupParametersMutex       sync.RWMutex
+	updateParamGroupParametersArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
-		arg3 providers.UpdateParameters
+		arg3 providers.UpdateParamGroupParameters
 	}
-	updateReturns struct {
+	updateParamGroupParametersReturns struct {
 		result1 error
 	}
-	updateReturnsOnCall map[int]struct {
+	updateParamGroupParametersReturnsOnCall map[int]struct {
+		result1 error
+	}
+	UpdateReplicationGroupStub        func(context.Context, string, providers.UpdateReplicationGroupParameters) error
+	updateReplicationGroupMutex       sync.RWMutex
+	updateReplicationGroupArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 providers.UpdateReplicationGroupParameters
+	}
+	updateReplicationGroupReturns struct {
+		result1 error
+	}
+	updateReplicationGroupReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
@@ -730,18 +743,18 @@ func (fake *FakeProvider) RevokeCredentialsReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeProvider) Update(arg1 context.Context, arg2 string, arg3 providers.UpdateParameters) error {
-	fake.updateMutex.Lock()
-	ret, specificReturn := fake.updateReturnsOnCall[len(fake.updateArgsForCall)]
-	fake.updateArgsForCall = append(fake.updateArgsForCall, struct {
+func (fake *FakeProvider) UpdateParamGroupParameters(arg1 context.Context, arg2 string, arg3 providers.UpdateParamGroupParameters) error {
+	fake.updateParamGroupParametersMutex.Lock()
+	ret, specificReturn := fake.updateParamGroupParametersReturnsOnCall[len(fake.updateParamGroupParametersArgsForCall)]
+	fake.updateParamGroupParametersArgsForCall = append(fake.updateParamGroupParametersArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
-		arg3 providers.UpdateParameters
+		arg3 providers.UpdateParamGroupParameters
 	}{arg1, arg2, arg3})
-	stub := fake.UpdateStub
-	fakeReturns := fake.updateReturns
-	fake.recordInvocation("Update", []interface{}{arg1, arg2, arg3})
-	fake.updateMutex.Unlock()
+	stub := fake.UpdateParamGroupParametersStub
+	fakeReturns := fake.updateParamGroupParametersReturns
+	fake.recordInvocation("UpdateParamGroupParameters", []interface{}{arg1, arg2, arg3})
+	fake.updateParamGroupParametersMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3)
 	}
@@ -751,44 +764,107 @@ func (fake *FakeProvider) Update(arg1 context.Context, arg2 string, arg3 provide
 	return fakeReturns.result1
 }
 
-func (fake *FakeProvider) UpdateCallCount() int {
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
-	return len(fake.updateArgsForCall)
+func (fake *FakeProvider) UpdateParamGroupParametersCallCount() int {
+	fake.updateParamGroupParametersMutex.RLock()
+	defer fake.updateParamGroupParametersMutex.RUnlock()
+	return len(fake.updateParamGroupParametersArgsForCall)
 }
 
-func (fake *FakeProvider) UpdateCalls(stub func(context.Context, string, providers.UpdateParameters) error) {
-	fake.updateMutex.Lock()
-	defer fake.updateMutex.Unlock()
-	fake.UpdateStub = stub
+func (fake *FakeProvider) UpdateParamGroupParametersCalls(stub func(context.Context, string, providers.UpdateParamGroupParameters) error) {
+	fake.updateParamGroupParametersMutex.Lock()
+	defer fake.updateParamGroupParametersMutex.Unlock()
+	fake.UpdateParamGroupParametersStub = stub
 }
 
-func (fake *FakeProvider) UpdateArgsForCall(i int) (context.Context, string, providers.UpdateParameters) {
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
-	argsForCall := fake.updateArgsForCall[i]
+func (fake *FakeProvider) UpdateParamGroupParametersArgsForCall(i int) (context.Context, string, providers.UpdateParamGroupParameters) {
+	fake.updateParamGroupParametersMutex.RLock()
+	defer fake.updateParamGroupParametersMutex.RUnlock()
+	argsForCall := fake.updateParamGroupParametersArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeProvider) UpdateReturns(result1 error) {
-	fake.updateMutex.Lock()
-	defer fake.updateMutex.Unlock()
-	fake.UpdateStub = nil
-	fake.updateReturns = struct {
+func (fake *FakeProvider) UpdateParamGroupParametersReturns(result1 error) {
+	fake.updateParamGroupParametersMutex.Lock()
+	defer fake.updateParamGroupParametersMutex.Unlock()
+	fake.UpdateParamGroupParametersStub = nil
+	fake.updateParamGroupParametersReturns = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeProvider) UpdateReturnsOnCall(i int, result1 error) {
-	fake.updateMutex.Lock()
-	defer fake.updateMutex.Unlock()
-	fake.UpdateStub = nil
-	if fake.updateReturnsOnCall == nil {
-		fake.updateReturnsOnCall = make(map[int]struct {
+func (fake *FakeProvider) UpdateParamGroupParametersReturnsOnCall(i int, result1 error) {
+	fake.updateParamGroupParametersMutex.Lock()
+	defer fake.updateParamGroupParametersMutex.Unlock()
+	fake.UpdateParamGroupParametersStub = nil
+	if fake.updateParamGroupParametersReturnsOnCall == nil {
+		fake.updateParamGroupParametersReturnsOnCall = make(map[int]struct {
 			result1 error
 		})
 	}
-	fake.updateReturnsOnCall[i] = struct {
+	fake.updateParamGroupParametersReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) UpdateReplicationGroup(arg1 context.Context, arg2 string, arg3 providers.UpdateReplicationGroupParameters) error {
+	fake.updateReplicationGroupMutex.Lock()
+	ret, specificReturn := fake.updateReplicationGroupReturnsOnCall[len(fake.updateReplicationGroupArgsForCall)]
+	fake.updateReplicationGroupArgsForCall = append(fake.updateReplicationGroupArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 providers.UpdateReplicationGroupParameters
+	}{arg1, arg2, arg3})
+	stub := fake.UpdateReplicationGroupStub
+	fakeReturns := fake.updateReplicationGroupReturns
+	fake.recordInvocation("UpdateReplicationGroup", []interface{}{arg1, arg2, arg3})
+	fake.updateReplicationGroupMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeProvider) UpdateReplicationGroupCallCount() int {
+	fake.updateReplicationGroupMutex.RLock()
+	defer fake.updateReplicationGroupMutex.RUnlock()
+	return len(fake.updateReplicationGroupArgsForCall)
+}
+
+func (fake *FakeProvider) UpdateReplicationGroupCalls(stub func(context.Context, string, providers.UpdateReplicationGroupParameters) error) {
+	fake.updateReplicationGroupMutex.Lock()
+	defer fake.updateReplicationGroupMutex.Unlock()
+	fake.UpdateReplicationGroupStub = stub
+}
+
+func (fake *FakeProvider) UpdateReplicationGroupArgsForCall(i int) (context.Context, string, providers.UpdateReplicationGroupParameters) {
+	fake.updateReplicationGroupMutex.RLock()
+	defer fake.updateReplicationGroupMutex.RUnlock()
+	argsForCall := fake.updateReplicationGroupArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeProvider) UpdateReplicationGroupReturns(result1 error) {
+	fake.updateReplicationGroupMutex.Lock()
+	defer fake.updateReplicationGroupMutex.Unlock()
+	fake.UpdateReplicationGroupStub = nil
+	fake.updateReplicationGroupReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) UpdateReplicationGroupReturnsOnCall(i int, result1 error) {
+	fake.updateReplicationGroupMutex.Lock()
+	defer fake.updateReplicationGroupMutex.Unlock()
+	fake.UpdateReplicationGroupStub = nil
+	if fake.updateReplicationGroupReturnsOnCall == nil {
+		fake.updateReplicationGroupReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.updateReplicationGroupReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
@@ -814,8 +890,10 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.provisionMutex.RUnlock()
 	fake.revokeCredentialsMutex.RLock()
 	defer fake.revokeCredentialsMutex.RUnlock()
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
+	fake.updateParamGroupParametersMutex.RLock()
+	defer fake.updateParamGroupParametersMutex.RUnlock()
+	fake.updateReplicationGroupMutex.RLock()
+	defer fake.updateReplicationGroupMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

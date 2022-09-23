@@ -3,6 +3,8 @@ package providers
 import (
 	"context"
 	"time"
+
+	"github.com/pivotal-cf/brokerapi/domain"
 )
 
 // ServiceState is the state of a service instance
@@ -42,7 +44,11 @@ type DeprovisionParameters struct {
 	FinalSnapshotIdentifier string
 }
 
-type UpdateParameters struct {
+type UpdateReplicationGroupParameters struct {
+	PreferredMaintenanceWindow string
+}
+
+type UpdateParamGroupParameters struct {
 	Parameters map[string]string
 }
 
@@ -52,9 +58,23 @@ type SnapshotInfo struct {
 	Tags       map[string]string
 }
 
+type CacheParameter struct {
+	ParameterName  string `json:"parameter_name"`
+	ParameterValue string `json:"parameter_value"`
+}
 type InstanceParameters struct {
-	MaintenanceWindow string `json:"maintenance_window"`
-	DailyBackupWindow string `json:"daily_backup_window"`
+	PreferredMaintenanceWindow string           `json:"preferred_maintenance_window"`
+	DailyBackupWindow          string           `json:"daily_backup_window"`
+	MaxMemoryPolicy            string           `json:"maxmemory_policy"`
+	CacheParameters            []CacheParameter `json:"cache_parameters"`
+}
+
+type InstanceDetails struct {
+	ServiceID    string             `json:"service_id"`
+	PlanID       string             `json:"plan_id"`
+	DashboardURL string             `json:"dashboard_url"`
+	Parameters   InstanceParameters `json:"parameters"`
+	domain.GetInstanceDetailsSpec
 }
 
 // Provider is a general interface to implement the broker's functionality with a specific provider
@@ -62,7 +82,8 @@ type InstanceParameters struct {
 //counterfeiter:generate -o mocks/provider.go . Provider
 type Provider interface {
 	Provision(ctx context.Context, instanceID string, params ProvisionParameters) error
-	Update(ctx context.Context, instanceID string, params UpdateParameters) error
+	UpdateReplicationGroup(ctx context.Context, instanceID string, params UpdateReplicationGroupParameters) error
+	UpdateParamGroupParameters(ctx context.Context, instanceID string, params UpdateParamGroupParameters) error
 	Deprovision(ctx context.Context, instanceID string, params DeprovisionParameters) error
 	GetState(ctx context.Context, instanceID string) (ServiceState, string, error)
 	GetInstanceParameters(ctx context.Context, instanceID string) (InstanceParameters, error)

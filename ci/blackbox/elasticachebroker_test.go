@@ -1,18 +1,16 @@
 package integration_aws_test
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	redisclient "github.com/garyburd/redigo/redis"
-	"github.com/pivotal-cf/brokerapi"
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/alphagov/paas-elasticache-broker/ci/helpers"
+	"github.com/alphagov/paas-elasticache-broker/providers"
 	"github.com/alphagov/paas-elasticache-broker/providers/redis"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -30,21 +28,26 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 	Describe("Broker lifecycle", func() {
 
 		var (
-			planID             = PLAN_MICRO_UUID
-			serviceID          = SERVICE_REDIS_UUID
-			instanceID         string
-			appID              string
-			bindingID          string
-			snapshotName       string
-			restoredInstanceID string
-			credentials        map[string]interface{}
-			conn               redisclient.Conn
+			planID               = PLAN_MICRO_UUID
+			serviceID            = SERVICE_REDIS_UUID
+			instanceID           string
+			instanceIDWithParams string
+			appID                string
+			bindingID            string
+			snapshotName         string
+			restoredInstanceID   string
+			credentials          map[string]interface{}
+			conn                 redisclient.Conn
 		)
 
 		// FIXME: if the broker ends up destroying parameter groups itself, this can be removed.
 		AfterEach(func() {
 			if instanceID != "" {
 				paramGroupName := redis.GenerateReplicationGroupName(instanceID)
+				helpers.DestroyParameterGroup(&paramGroupName, awsSession)
+			}
+			if instanceIDWithParams != "" {
+				paramGroupName := redis.GenerateReplicationGroupName(instanceIDWithParams)
 				helpers.DestroyParameterGroup(&paramGroupName, awsSession)
 			}
 		})
@@ -56,23 +59,45 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 			snapshotName = fmt.Sprintf("test-%s-snapshot", instanceID)
 			restoredInstanceID = uuid.NewV4().String()
 
+			instanceIDWithParams = uuid.NewV4().String()
+
 			brokerAPIClient.AcceptsIncomplete = true
 
 			elasticacheService := elasticache.New(awsSession)
 
 			By("provisioning", func() {
+				// provision with default params
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
+				// provision with custom params
+				code, paramsOperation, err := brokerAPIClient.ProvisionInstance(instanceIDWithParams, serviceID, planID, `{"preferred_maintenance_window": "sun:13:00-sun:19:30"}`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+
+				// poll for completion of default params provision
 				state := pollForOperationCompletion(instanceID, serviceID, planID, operation, "succeeded")
+				Expect(state).To(Equal("succeeded"))
+				// poll for completion of custom params provision
+				state = pollForOperationCompletion(instanceIDWithParams, serviceID, planID, paramsOperation, "succeeded")
 				Expect(state).To(Equal("succeeded"))
 			})
 
 			defer By("deprovisioning", func() {
+				// deprovision default params instance
 				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
+				// deprovision custom params instance
+				code, paramsOperation, err := brokerAPIClient.DeprovisionInstance(instanceIDWithParams, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+
+				// poll for completion of default params deprovision
 				state := pollForOperationCompletion(instanceID, serviceID, planID, operation, "gone")
+				Expect(state).To(Equal("gone"))
+				// poll for completion of custom params deprovision
+				state = pollForOperationCompletion(instanceIDWithParams, serviceID, planID, paramsOperation, "gone")
 				Expect(state).To(Equal("gone"))
 			})
 
@@ -119,24 +144,6 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				))
 			})
 
-			By("checking that the Maintenance Window can be retrieved", func() {
-				serviceInfo, err := brokerAPIClient.DoGetInstanceRequest(instanceID)
-				Expect(err).ToNot(HaveOccurred())
-				body, err := ioutil.ReadAll(serviceInfo.Body)
-				Expect(err).ToNot(HaveOccurred())
-				// get json from response body
-				var serviceInfoJSON brokerapi.GetInstanceDetailsSpec
-				err = json.Unmarshal(body, &serviceInfoJSON)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(serviceInfoJSON.ServiceID).To(Equal(serviceID))
-				Expect(serviceInfoJSON.PlanID).To(Equal(planID))
-				serviceParams := serviceInfoJSON.Parameters.(map[string]interface{})
-				Expect(serviceParams["maintenance_window"]).ToNot(BeNil())
-				Expect(serviceParams["maintenance_window"]).To(MatchRegexp(`^[a-z]{3}:\d{2}:\d{2}\-[a-z]{3}:\d{2}:\d{2}$`))
-				Expect(serviceParams["daily_backup_window"]).ToNot(BeNil())
-				Expect(serviceParams["daily_backup_window"]).To(MatchRegexp(`^\d{2}:\d{2}-\d{2}:\d{2}$`))
-			})
-
 			By("checking that the cache parameter group has been set", func() {
 				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
 				res, err := elasticacheService.DescribeCacheParameters(&elasticache.DescribeCacheParametersInput{
@@ -157,29 +164,39 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(found).To(Equal(2))
 			})
 
-			By("updating parameters", func() {
-				updateParams := fmt.Sprintf(`{"maxmemory_policy": "noeviction"}`)
+			By("updating the maxmemory_policy", func() {
+				updateParams := `{"maxmemory_policy": "noeviction"}`
 				oldPlanID := planID
 				oldServiceID := serviceID
-				code, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
+				code, _, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
+				newServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				expectedCacheParameter := providers.CacheParameter{
+					ParameterName:  "maxmemory-policy",
+					ParameterValue: "noeviction",
+				}
+				Expect(newServiceParams.CacheParameters).To(ContainElement(expectedCacheParameter))
+				Expect(newServiceParams.MaxMemoryPolicy).To(Equal("noeviction"))
 			})
 
-			By("checking that the cache parameter group has been updated", func() {
-				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
-				res, err := elasticacheService.DescribeCacheParameters(&elasticache.DescribeCacheParametersInput{
-					CacheParameterGroupName: aws.String(replicationGroupID),
-				})
+			By("checking the instance was provisioned with correct preferred_maintenance_window", func() {
+				serviceParams, err := brokerAPIClient.GetServiceParams(instanceIDWithParams)
 				Expect(err).ToNot(HaveOccurred())
-				found := 0
-				for _, p := range res.Parameters {
-					if *p.ParameterName == "maxmemory-policy" {
-						found++
-						Expect(*p.ParameterValue).To(Equal("noeviction"))
-					}
-				}
-				Expect(found).To(Equal(1))
+				Expect(serviceParams.PreferredMaintenanceWindow).To(Equal("sun:13:00-sun:19:30"))
+			})
+
+			By("updating the preferred_maintenance_window", func() {
+				updateParams := `{"preferred_maintenance_window": "tue:17:51-tue:19:45"}`
+				oldPlanID := planID
+				oldServiceID := serviceID
+				code, _, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				newServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(newServiceParams.PreferredMaintenanceWindow).To(Equal("tue:17:51-tue:19:45"))
 			})
 
 			By("binding a resource to the service", func() {

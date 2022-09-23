@@ -46,6 +46,7 @@ func TestSuite(t *testing.T) {
 		fmt.Fprintln(GinkgoWriter, os.Environ())
 
 		originalConfig, err := broker.LoadConfig("./config.json")
+		Expect(err).NotTo(HaveOccurred())
 
 		awsSession = session.Must(session.NewSession(&aws.Config{
 			Region: aws.String(originalConfig.Region)},
@@ -69,7 +70,7 @@ func TestSuite(t *testing.T) {
 		)
 
 		var configFileName string
-		elastiCacheBrokerConfig, configFileName, err = WriteCustomConfig(
+		elastiCacheBrokerConfig, configFileName, _ = WriteCustomConfig(
 			originalConfig,
 			brokerName,
 			*elastiCacheSubnetGroupName,
