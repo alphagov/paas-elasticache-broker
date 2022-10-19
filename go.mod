@@ -16,6 +16,8 @@ require (
 
 require (
 	github.com/drewolson/testflight v1.0.0 // indirect
+	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
+	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/google/uuid v1.0.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
