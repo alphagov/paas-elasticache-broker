@@ -54,11 +54,11 @@ var _ = Describe("Broker", func() {
 		validConfig = broker.Config{
 			Catalog: brokerapi.CatalogResponse{
 				Services: []brokerapi.Service{
-					brokerapi.Service{
+					{
 						ID:   "service1",
 						Name: "service1",
 						Plans: []brokerapi.ServicePlan{
-							brokerapi.ServicePlan{
+							{
 								ID:   "plan1",
 								Name: "plan1",
 							},
@@ -67,7 +67,7 @@ var _ = Describe("Broker", func() {
 				},
 			},
 			PlanConfigs: map[string]broker.PlanConfig{
-				"plan1": broker.PlanConfig{},
+				"plan1": {},
 			},
 		}
 		logger = lager.NewLogger("elasticache-broker")
@@ -288,7 +288,7 @@ var _ = Describe("Broker", func() {
 
 		It("responds with a 500 when an unknown deprovisioning error occurs", func() {
 			instanceID := uuid.NewV4().String()
-			fakeProvider.UpdateReturns(errors.New("bad stuff"))
+			fakeProvider.UpdateParamGroupParametersReturns(errors.New("bad stuff"))
 
 			resp := DoRequest(brokerAPI, NewRequest(
 				"PATCH",

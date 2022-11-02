@@ -160,6 +160,21 @@ type FakeElastiCache struct {
 		result1 *elasticache.CacheParameterGroupNameMessage
 		result2 error
 	}
+	ModifyReplicationGroupWithContextStub        func(context.Context, *elasticache.ModifyReplicationGroupInput, ...request.Option) (*elasticache.ModifyReplicationGroupOutput, error)
+	modifyReplicationGroupWithContextMutex       sync.RWMutex
+	modifyReplicationGroupWithContextArgsForCall []struct {
+		arg1 context.Context
+		arg2 *elasticache.ModifyReplicationGroupInput
+		arg3 []request.Option
+	}
+	modifyReplicationGroupWithContextReturns struct {
+		result1 *elasticache.ModifyReplicationGroupOutput
+		result2 error
+	}
+	modifyReplicationGroupWithContextReturnsOnCall map[int]struct {
+		result1 *elasticache.ModifyReplicationGroupOutput
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -822,6 +837,72 @@ func (fake *FakeElastiCache) ModifyCacheParameterGroupWithContextReturnsOnCall(i
 	}{result1, result2}
 }
 
+func (fake *FakeElastiCache) ModifyReplicationGroupWithContext(arg1 context.Context, arg2 *elasticache.ModifyReplicationGroupInput, arg3 ...request.Option) (*elasticache.ModifyReplicationGroupOutput, error) {
+	fake.modifyReplicationGroupWithContextMutex.Lock()
+	ret, specificReturn := fake.modifyReplicationGroupWithContextReturnsOnCall[len(fake.modifyReplicationGroupWithContextArgsForCall)]
+	fake.modifyReplicationGroupWithContextArgsForCall = append(fake.modifyReplicationGroupWithContextArgsForCall, struct {
+		arg1 context.Context
+		arg2 *elasticache.ModifyReplicationGroupInput
+		arg3 []request.Option
+	}{arg1, arg2, arg3})
+	stub := fake.ModifyReplicationGroupWithContextStub
+	fakeReturns := fake.modifyReplicationGroupWithContextReturns
+	fake.recordInvocation("ModifyReplicationGroupWithContext", []interface{}{arg1, arg2, arg3})
+	fake.modifyReplicationGroupWithContextMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeElastiCache) ModifyReplicationGroupWithContextCallCount() int {
+	fake.modifyReplicationGroupWithContextMutex.RLock()
+	defer fake.modifyReplicationGroupWithContextMutex.RUnlock()
+	return len(fake.modifyReplicationGroupWithContextArgsForCall)
+}
+
+func (fake *FakeElastiCache) ModifyReplicationGroupWithContextCalls(stub func(context.Context, *elasticache.ModifyReplicationGroupInput, ...request.Option) (*elasticache.ModifyReplicationGroupOutput, error)) {
+	fake.modifyReplicationGroupWithContextMutex.Lock()
+	defer fake.modifyReplicationGroupWithContextMutex.Unlock()
+	fake.ModifyReplicationGroupWithContextStub = stub
+}
+
+func (fake *FakeElastiCache) ModifyReplicationGroupWithContextArgsForCall(i int) (context.Context, *elasticache.ModifyReplicationGroupInput, []request.Option) {
+	fake.modifyReplicationGroupWithContextMutex.RLock()
+	defer fake.modifyReplicationGroupWithContextMutex.RUnlock()
+	argsForCall := fake.modifyReplicationGroupWithContextArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeElastiCache) ModifyReplicationGroupWithContextReturns(result1 *elasticache.ModifyReplicationGroupOutput, result2 error) {
+	fake.modifyReplicationGroupWithContextMutex.Lock()
+	defer fake.modifyReplicationGroupWithContextMutex.Unlock()
+	fake.ModifyReplicationGroupWithContextStub = nil
+	fake.modifyReplicationGroupWithContextReturns = struct {
+		result1 *elasticache.ModifyReplicationGroupOutput
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeElastiCache) ModifyReplicationGroupWithContextReturnsOnCall(i int, result1 *elasticache.ModifyReplicationGroupOutput, result2 error) {
+	fake.modifyReplicationGroupWithContextMutex.Lock()
+	defer fake.modifyReplicationGroupWithContextMutex.Unlock()
+	fake.ModifyReplicationGroupWithContextStub = nil
+	if fake.modifyReplicationGroupWithContextReturnsOnCall == nil {
+		fake.modifyReplicationGroupWithContextReturnsOnCall = make(map[int]struct {
+			result1 *elasticache.ModifyReplicationGroupOutput
+			result2 error
+		})
+	}
+	fake.modifyReplicationGroupWithContextReturnsOnCall[i] = struct {
+		result1 *elasticache.ModifyReplicationGroupOutput
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeElastiCache) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -845,6 +926,8 @@ func (fake *FakeElastiCache) Invocations() map[string][][]interface{} {
 	defer fake.listTagsForResourceWithContextMutex.RUnlock()
 	fake.modifyCacheParameterGroupWithContextMutex.RLock()
 	defer fake.modifyCacheParameterGroupWithContextMutex.RUnlock()
+	fake.modifyReplicationGroupWithContextMutex.RLock()
+	defer fake.modifyReplicationGroupWithContextMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

@@ -9,6 +9,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"
+	"github.com/pkg/errors"
 
 	"github.com/alphagov/paas-elasticache-broker/providers"
 )
@@ -60,6 +61,9 @@ func (b *Broker) GetBinding(ctx context.Context, first, second string) (brokerap
 
 func (b *Broker) GetInstance(ctx context.Context, instanceID string) (brokerapi.GetInstanceDetailsSpec, error) {
 	instanceParameters, err := b.provider.GetInstanceParameters(ctx, instanceID)
+	if err != nil {
+		return brokerapi.GetInstanceDetailsSpec{}, err
+	}
 	instanceTags, err := b.provider.GetInstanceTags(ctx, instanceID)
 	if err != nil {
 		return brokerapi.GetInstanceDetailsSpec{}, err
@@ -154,7 +158,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		CacheParameterGroupFamily:  planConfig.CacheParameterGroupFamily,
 		SecurityGroupIds:           b.config.VpcSecurityGroupIds,
 		CacheSubnetGroupName:       b.config.CacheSubnetGroupName,
-		PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
+		PreferredMaintenanceWindow: userParameters.PreferredMaintenanceWindow,
 		ReplicasPerNodeGroup:       planConfig.ReplicasPerNodeGroup,
 		ShardCount:                 planConfig.ShardCount,
 		SnapshotRetentionLimit:     planConfig.SnapshotRetentionLimit,
@@ -193,7 +197,10 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}, nil
 }
 
-// Update modifies an existing service instance
+// Update modifies an existing service instance.
+// It can be used to update the maintenance window and / or the maxmemory policy.
+// As this is a synchronous operation, if updating the maintenance window fails
+// the whole operation will fail (ie. it won't try to be smart and carry on)
 func (b *Broker) Update(ctx context.Context, instanceID string, details brokerapi.UpdateDetails, asyncAllowed bool) (brokerapi.UpdateServiceSpec, error) {
 	b.logger.Debug("update", lager.Data{
 		"instance-id":        instanceID,
@@ -208,6 +215,14 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFunc()
 
+	if details.PlanID != details.PreviousValues.PlanID {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("changing plans is not currently supported")
+	}
+
+	if details.ServiceID != details.PreviousValues.ServiceID {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("changing plans is not currently supported")
+	}
+
 	userParameters := &UpdateParameters{}
 	if len(details.RawParameters) > 0 {
 		var err error
@@ -217,35 +232,41 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 		}
 	}
 
-	params := map[string]string{}
-	if userParameters.MaxMemoryPolicy != nil {
-		params["maxmemory-policy"] = *userParameters.MaxMemoryPolicy
-	}
-
-	if details.PlanID != details.PreviousValues.PlanID {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("changing plans is not currently supported")
-	}
-
-	if details.ServiceID != details.PreviousValues.ServiceID {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("changing plans is not currently supported")
-	}
-
-	if len(params) == 0 {
+	if userParameters.MaxMemoryPolicy == nil && userParameters.PreferredMaintenanceWindow == "" {
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("no parameters provided")
 	}
 
-	err := b.provider.Update(providerCtx, instanceID, providers.UpdateParameters{
-		Parameters: params,
-	})
-	if err != nil {
-		return brokerapi.UpdateServiceSpec{}, err
+	if userParameters.PreferredMaintenanceWindow != "" {
+		err := b.provider.UpdateReplicationGroup(providerCtx, instanceID, providers.UpdateReplicationGroupParameters{
+			PreferredMaintenanceWindow: userParameters.PreferredMaintenanceWindow,
+		})
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, errors.Wrap(err, "Updating preferred maintenance window failed")
+		}
+		b.logger.Debug("update-replication-group-success", lager.Data{
+			"instance-id":        instanceID,
+			"details":            details,
+			"accepts-incomplete": asyncAllowed,
+		})
 	}
 
-	b.logger.Debug("update-success", lager.Data{
-		"instance-id":        instanceID,
-		"details":            details,
-		"accepts-incomplete": asyncAllowed,
-	})
+	if userParameters.MaxMemoryPolicy != nil {
+		params := map[string]string{}
+		params["maxmemory-policy"] = *userParameters.MaxMemoryPolicy
+
+		err := b.provider.UpdateParamGroupParameters(providerCtx, instanceID, providers.UpdateParamGroupParameters{
+			Parameters: params,
+		})
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, errors.Wrap(err, "Updating maxmemory policy failed")
+		}
+		b.logger.Debug("update-parameter-group-success", lager.Data{
+			"instance-id":        instanceID,
+			"details":            details,
+			"accepts-incomplete": asyncAllowed,
+		})
+	}
+
 	return brokerapi.UpdateServiceSpec{
 		IsAsync:       true,
 		OperationData: Operation{Action: ActionUpdating}.String(),

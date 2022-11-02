@@ -6,7 +6,8 @@ import (
 )
 
 var alpha = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
-var alphaLower = []byte("abcdefghijklmnopqrstuvwxyz")
+
+// var alphaLower = []byte("abcdefghijklmnopqrstuvwxyz")
 var numer = []byte("0123456789")
 
 func RandomAlphaNum(length int) string {

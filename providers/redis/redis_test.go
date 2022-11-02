@@ -26,12 +26,16 @@ var _ = Describe("Provider", func() {
 	var (
 		mockElasticache    *mocks.FakeElastiCache
 		mockSecretsManager *mocks.FakeSecretsManager
-		provider           *RedisProvider
-		kmsKeyID           = "my-kms-key"
-		secretsManagerPath string
 		ctx                context.Context
 		instanceID         string
 		replicationGroupID string
+		secretsManagerPath string
+		awsAccountID       string
+		awsPartition       string
+		awsRegion          string
+
+		provider *RedisProvider
+		kmsKeyID = "my-kms-key"
 	)
 
 	BeforeEach(func() {
@@ -41,15 +45,18 @@ var _ = Describe("Provider", func() {
 		instanceID = "foobar"
 		replicationGroupID = "cf-qwkec4pxhft6q"
 		secretsManagerPath = "elasticache-broker-test"
+		awsAccountID = "123456789012"
+		awsPartition = "aws"
+		awsRegion = "eu-west-1"
 	})
 
 	JustBeforeEach(func() {
 		provider = NewProvider(
 			mockElasticache,
 			mockSecretsManager,
-			"123456789012",
-			"aws",
-			"eu-west-1",
+			awsAccountID,
+			awsPartition,
+			awsRegion,
 			lager.NewLogger("logger"),
 			kmsKeyID,
 			secretsManagerPath,
@@ -247,8 +254,8 @@ var _ = Describe("Provider", func() {
 			It("should pass them correctly", func() {
 				_, passedInput, _ := mockElasticache.CreateReplicationGroupWithContextArgsForCall(0)
 				Expect(passedInput.Tags).To(ConsistOf([]*elasticache.Tag{
-					&elasticache.Tag{Key: aws.String("tag1"), Value: aws.String("tag value1")},
-					&elasticache.Tag{Key: aws.String("tag2"), Value: aws.String("tag value2")},
+					{Key: aws.String("tag1"), Value: aws.String("tag value1")},
+					{Key: aws.String("tag2"), Value: aws.String("tag value2")},
 				}))
 			})
 		})
@@ -860,11 +867,11 @@ var _ = Describe("Provider", func() {
 			mockElasticache.ListTagsForResourceWithContextReturns(
 				&elasticache.TagListMessage{
 					TagList: []*elasticache.Tag{
-						&elasticache.Tag{
+						{
 							Key:   aws.String("Tag1"),
 							Value: aws.String("Val1"),
 						},
-						&elasticache.Tag{
+						{
 							Key:   aws.String("Tag2"),
 							Value: aws.String("Val2"),
 						},
@@ -875,21 +882,21 @@ var _ = Describe("Provider", func() {
 
 			now := time.Now()
 			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
-				elasticache.DescribeSnapshotsOutput{
+				{
 					Snapshots: []*elasticache.Snapshot{
-						&elasticache.Snapshot{
+						{
 							SnapshotName: aws.String("snapshot1"),
 							NodeSnapshots: []*elasticache.NodeSnapshot{
-								&elasticache.NodeSnapshot{
+								{
 									CacheClusterId:     &instanceID,
 									SnapshotCreateTime: aws.Time(now.Add(-2 * 24 * time.Hour)),
 								},
 							},
 						},
-						&elasticache.Snapshot{
+						{
 							SnapshotName: aws.String("snapshot2"),
 							NodeSnapshots: []*elasticache.NodeSnapshot{
-								&elasticache.NodeSnapshot{
+								{
 									CacheClusterId:     &instanceID,
 									SnapshotCreateTime: aws.Time(now.Add(-1 * 24 * time.Hour)),
 								},
@@ -953,13 +960,13 @@ var _ = Describe("Provider", func() {
 
 			now := time.Now()
 			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
-				elasticache.DescribeSnapshotsOutput{
+				{
 					Snapshots: []*elasticache.Snapshot{
 
-						&elasticache.Snapshot{
+						{
 							SnapshotName: aws.String("snapshot1"),
 							NodeSnapshots: []*elasticache.NodeSnapshot{
-								&elasticache.NodeSnapshot{
+								{
 									CacheClusterId:     &instanceID,
 									SnapshotCreateTime: aws.Time(now.Add(-2 * 24 * time.Hour)),
 								},
@@ -984,9 +991,9 @@ var _ = Describe("Provider", func() {
 			instanceID := "foobar"
 
 			describeSnapshotOutputToReturn = []elasticache.DescribeSnapshotsOutput{
-				elasticache.DescribeSnapshotsOutput{
+				{
 					Snapshots: []*elasticache.Snapshot{
-						&elasticache.Snapshot{},
+						{},
 					},
 				},
 			}
@@ -1008,7 +1015,7 @@ var _ = Describe("Provider", func() {
 
 			ctx := context.Background()
 
-			err := provider.Update(ctx, instanceID, providers.UpdateParameters{
+			err := provider.UpdateParamGroupParameters(ctx, instanceID, providers.UpdateParamGroupParameters{
 				Parameters: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
@@ -1033,7 +1040,7 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("should not modify the cache parameter group if no params are passed", func() {
-			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+			err := provider.UpdateParamGroupParameters(context.Background(), "foobar", providers.UpdateParamGroupParameters{
 				Parameters: map[string]string{},
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -1045,12 +1052,224 @@ var _ = Describe("Provider", func() {
 			awsError := errors.New("some error")
 			mockElasticache.ModifyCacheParameterGroupWithContextReturnsOnCall(0, nil, awsError)
 
-			err := provider.Update(context.Background(), "foobar", providers.UpdateParameters{
+			err := provider.UpdateParamGroupParameters(context.Background(), "foobar", providers.UpdateParamGroupParameters{
 				Parameters: map[string]string{
 					"key1": "value1",
 				},
 			})
 			Expect(err).To(MatchError(awsError))
+		})
+
+		It("should update the replication group", func() {
+			replicationGroupID := "cf-qwkec4pxhft6q"
+			instanceID := "foobar"
+
+			ctx := context.Background()
+
+			err := provider.UpdateReplicationGroup(ctx, instanceID, providers.UpdateReplicationGroupParameters{
+				PreferredMaintenanceWindow: "asdf",
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(mockElasticache.ModifyReplicationGroupWithContextCallCount()).To(Equal(1))
+			receivedCtx, replicationGroupInput, _ := mockElasticache.ModifyReplicationGroupWithContextArgsForCall(0)
+			Expect(receivedCtx).To(Equal(ctx))
+			Expect(replicationGroupInput.ReplicationGroupId).To(Equal(aws.String(replicationGroupID)))
+			Expect(*replicationGroupInput.PreferredMaintenanceWindow).To(Equal("asdf"))
+		})
+
+		It("should not update the replication group if no preferredMaintenanceWindow is passed", func() {
+			instanceID := "foobar"
+
+			ctx := context.Background()
+
+			err := provider.UpdateReplicationGroup(ctx, instanceID, providers.UpdateReplicationGroupParameters{
+				PreferredMaintenanceWindow: "",
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(mockElasticache.ModifyReplicationGroupWithContextCallCount()).To(Equal(0))
+		})
+	})
+
+	Describe("replicationGroupARN", func() {
+		It("should generate the correct ARN string", func() {
+			arn := ExportReplicationGroupARN(provider, replicationGroupID)
+			Expect(arn).To(Equal(fmt.Sprintf("arn:%s:elasticache:%s:%s:replicationgroup:%s", awsPartition, awsRegion, awsAccountID, replicationGroupID)))
+		})
+	})
+
+	Describe("GetInstanceTags", func() {
+		It("Should produce a key:value list of AWS tags on the instance", func() {
+			expectedTags := map[string]string{
+				"testkey1": "testvalue1",
+				"testkey2": "testvalue2",
+			}
+			tagListMessage := elasticache.TagListMessage{
+				TagList: []*elasticache.Tag{
+					{
+						Key:   aws.String("testkey1"),
+						Value: aws.String("testvalue1"),
+					},
+					{
+						Key:   aws.String("testkey2"),
+						Value: aws.String("testvalue2"),
+					},
+				},
+			}
+			mockElasticache.ListTagsForResourceWithContextReturns(&tagListMessage, nil)
+
+			tags, _ := provider.GetInstanceTags(ctx, instanceID)
+			Expect(tags).To(Equal(expectedTags))
+		})
+		It("should return the error if an error occurs", func() {
+			errorReturn := errors.New("there was an error")
+			mockElasticache.ListTagsForResourceWithContextReturns(&elasticache.TagListMessage{}, errorReturn)
+			tags, err := provider.GetInstanceTags(ctx, instanceID)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(errorReturn))
+			Expect(tags).To(BeNil())
+		})
+	})
+
+	Describe("GetInstanceParameters", func() {
+		BeforeEach(func() {
+
+			describeReplicationGroupsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{
+						MemberClusters: []*string{aws.String("some-cluster-id")},
+						SnapshotWindow: aws.String("some-snapshot-window"),
+					},
+				},
+			}
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(describeReplicationGroupsOutput, nil)
+
+			describeCacheClustersOutput := &elasticache.DescribeCacheClustersOutput{
+				CacheClusters: []*elasticache.CacheCluster{
+					{
+						CacheClusterId:             aws.String("some-cluster-id"),
+						PreferredMaintenanceWindow: aws.String("some-maintenance-window"),
+					},
+				},
+			}
+			mockElasticache.DescribeCacheClustersWithContextReturns(describeCacheClustersOutput, nil)
+
+			describeCacheParametersOutput := &elasticache.DescribeCacheParametersOutput{
+				Parameters: []*elasticache.Parameter{
+					{
+						ParameterName:  aws.String("some-parameter-name"),
+						ParameterValue: aws.String("some-parameter-value"),
+					},
+					{
+						ParameterName:  aws.String("maxmemory-policy"),
+						ParameterValue: aws.String("some-maxmemory-policy"),
+					},
+				},
+			}
+			mockElasticache.DescribeCacheParametersWithContextReturns(describeCacheParametersOutput, nil)
+		})
+		It("returns the instance parameters for an instance", func() {
+			instanceParams, err := provider.GetInstanceParameters(ctx, instanceID)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(instanceParams).To(Equal(providers.InstanceParameters{
+				PreferredMaintenanceWindow: "some-maintenance-window",
+				DailyBackupWindow:          "some-snapshot-window",
+				MaxMemoryPolicy:            "some-maxmemory-policy",
+				CacheParameters: []providers.CacheParameter{
+					{
+						ParameterName:  "some-parameter-name",
+						ParameterValue: "some-parameter-value",
+					},
+					{
+						ParameterName:  "maxmemory-policy",
+						ParameterValue: "some-maxmemory-policy",
+					},
+				},
+			}))
+		})
+		It("handles missing maintenance window", func() {
+			describeCacheClustersOutput := &elasticache.DescribeCacheClustersOutput{
+				CacheClusters: []*elasticache.CacheCluster{
+					{
+						CacheClusterId:             aws.String("some-cluster-id"),
+						PreferredMaintenanceWindow: nil,
+					},
+				},
+			}
+			mockElasticache.DescribeCacheClustersWithContextReturns(describeCacheClustersOutput, nil)
+			instanceParams, err := provider.GetInstanceParameters(ctx, instanceID)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(instanceParams).To(Equal(providers.InstanceParameters{
+				PreferredMaintenanceWindow: "",
+				DailyBackupWindow:          "some-snapshot-window",
+				MaxMemoryPolicy:            "some-maxmemory-policy",
+				CacheParameters: []providers.CacheParameter{
+					{
+						ParameterName:  "some-parameter-name",
+						ParameterValue: "some-parameter-value",
+					},
+					{
+						ParameterName:  "maxmemory-policy",
+						ParameterValue: "some-maxmemory-policy",
+					},
+				},
+			}))
+
+		})
+		It("handles missing backup window", func() {
+			describeReplicationGroupsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{
+						MemberClusters: []*string{aws.String("some-cluster-id")},
+						SnapshotWindow: nil,
+					},
+				},
+			}
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(describeReplicationGroupsOutput, nil)
+
+			instanceParams, err := provider.GetInstanceParameters(ctx, instanceID)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(instanceParams).To(Equal(providers.InstanceParameters{
+				PreferredMaintenanceWindow: "some-maintenance-window",
+				DailyBackupWindow:          "",
+				MaxMemoryPolicy:            "some-maxmemory-policy",
+				CacheParameters: []providers.CacheParameter{
+					{
+						ParameterName:  "some-parameter-name",
+						ParameterValue: "some-parameter-value",
+					},
+					{
+						ParameterName:  "maxmemory-policy",
+						ParameterValue: "some-maxmemory-policy",
+					},
+				},
+			}))
+
+		})
+		It("throws an error if the replication group has no members", func() {
+			describeReplicationGroupsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{{MemberClusters: nil}},
+			}
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(describeReplicationGroupsOutput, nil)
+			_, err := provider.GetInstanceParameters(ctx, instanceID)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(fmt.Errorf("Replication group does not have any member clusters: %s", replicationGroupID)))
+		})
+		It("returns the correct error if the replication group does not exist", func() {
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(nil, awserr.New(elasticache.ErrCodeReplicationGroupNotFoundFault, "", errors.New("")))
+			_, err := provider.GetInstanceParameters(ctx, instanceID)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(fmt.Errorf("Replication group does not exist: %s", replicationGroupID)))
+		})
+		It("returns the error if another error occurs", func() {
+			thrownError := errors.New("this is an error")
+			mockElasticache.DescribeReplicationGroupsWithContextReturns(nil, thrownError)
+			_, err := provider.GetInstanceParameters(ctx, instanceID)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(thrownError))
 		})
 	})
 })

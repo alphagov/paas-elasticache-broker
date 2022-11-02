@@ -27,11 +27,11 @@ var _ = Describe("Broker", func() {
 			CacheSubnetGroupName: "cache-subnet-group-name",
 			Catalog: brokerapi.CatalogResponse{
 				Services: []brokerapi.Service{
-					brokerapi.Service{
+					{
 						ID:   "service1",
 						Name: "service1",
 						Plans: []brokerapi.ServicePlan{
-							brokerapi.ServicePlan{
+							{
 								ID:   "plan1",
 								Name: "plan1",
 							},
@@ -40,12 +40,13 @@ var _ = Describe("Broker", func() {
 				},
 			},
 			PlanConfigs: map[string]broker.PlanConfig{
-				"plan1": broker.PlanConfig{
+				"plan1": {
 					InstanceType: "t2.micro",
 					ShardCount:   1,
 					Parameters: map[string]string{
-						"maxmemory-policy": "volatile-lru",
-						"reserved-memory":  "0",
+						"maxmemory-policy":             "volatile-lru",
+						"reserved-memory":              "0",
+						"preferred-maintenance-window": "sun:23:00-mon:01:30",
 					},
 					AutomaticFailoverEnabled:  true,
 					MultiAZEnabled:            true,
@@ -131,7 +132,7 @@ var _ = Describe("Broker", func() {
 				CacheParameterGroupFamily:  "default.redis4.0",
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 				CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
-				PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
+				PreferredMaintenanceWindow: "",
 				ReplicasPerNodeGroup:       0,
 				ShardCount:                 1,
 				SnapshotRetentionLimit:     0,
@@ -160,7 +161,7 @@ var _ = Describe("Broker", func() {
 			fakeProvider := &mocks.FakeProvider{}
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
-			validProvisionDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
+			validProvisionDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction", "preferred_maintenance_window": "sun:23:00-mon:01:30"}`)
 
 			_, err := b.Provision(context.Background(), "instanceid", validProvisionDetails, true)
 			Expect(err).ToNot(HaveOccurred())
@@ -169,8 +170,9 @@ var _ = Describe("Broker", func() {
 			_, _, params := fakeProvider.ProvisionArgsForCall(0)
 
 			expectedParameters := map[string]string{
-				"reserved-memory":  "0",
-				"maxmemory-policy": "noeviction",
+				"reserved-memory":              "0",
+				"maxmemory-policy":             "noeviction",
+				"preferred-maintenance-window": "sun:23:00-mon:01:30",
 			}
 
 			Expect(params.Parameters).To(Equal(expectedParameters))
@@ -256,7 +258,7 @@ var _ = Describe("Broker", func() {
 
 				fakeProvider.FindSnapshotsReturns(
 					[]providers.SnapshotInfo{
-						providers.SnapshotInfo{
+						{
 							Name:       restoreFromSnapshotInstanceGUID + "-snapshot-name-2-day-old",
 							CreateTime: time.Now().Add(-2 * 24 * time.Hour),
 							Tags: map[string]string{
@@ -268,7 +270,7 @@ var _ = Describe("Broker", func() {
 								"instance-id":     "instanceid",
 							},
 						},
-						providers.SnapshotInfo{
+						{
 							Name:       restoreFromSnapshotInstanceGUID + "-snapshot-name-1-day-old",
 							CreateTime: time.Now().Add(-1 * 24 * time.Hour),
 							Tags: map[string]string{
@@ -339,7 +341,7 @@ var _ = Describe("Broker", func() {
 					CacheParameterGroupFamily:  "default.redis4.0",
 					SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 					CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
-					PreferredMaintenanceWindow: "sun:23:00-mon:01:30",
+					PreferredMaintenanceWindow: "",
 					ReplicasPerNodeGroup:       0,
 					ShardCount:                 1,
 					SnapshotRetentionLimit:     0,
@@ -439,18 +441,18 @@ var _ = Describe("Broker", func() {
 			b = broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 		})
 
-		It("updates the service through the Provider", func() {
+		It("updates the redis parameter group through the Provider", func() {
 			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
 
 			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(fakeProvider.UpdateCallCount()).To(Equal(1))
-			_, id, params := fakeProvider.UpdateArgsForCall(0)
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(Equal(1))
+			_, id, params := fakeProvider.UpdateParamGroupParametersArgsForCall(0)
 
 			Expect(id).To(Equal("instanceid"))
 
-			expectedParameters := providers.UpdateParameters{
+			expectedParameters := providers.UpdateParamGroupParameters{
 				Parameters: map[string]string{
 					"maxmemory-policy": "noeviction",
 				},
@@ -464,13 +466,112 @@ var _ = Describe("Broker", func() {
 			}))
 		})
 
+		It("updates the redis replication group through the Provider", func() {
+			validUpdateDetails.RawParameters = []byte(`{"preferred_maintenance_window": "mon:23:00-tue:01:30"}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.UpdateReplicationGroupCallCount()).To(Equal(1))
+			_, id, params := fakeProvider.UpdateReplicationGroupArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+
+			expectedParameters := providers.UpdateReplicationGroupParameters{
+				PreferredMaintenanceWindow: "mon:23:00-tue:01:30",
+			}
+
+			Expect(params).To(Equal(expectedParameters))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       true,
+				OperationData: broker.Operation{Action: broker.ActionUpdating}.String(),
+			}))
+
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(BeZero())
+		})
+
+		It("updates both the redis replication group and the redis parameter group through the Provider", func() {
+			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction", "preferred_maintenance_window": "mon:23:00-tue:01:30"}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(Equal(1))
+			_, id, paramParams := fakeProvider.UpdateParamGroupParametersArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+
+			paramExpectedParameters := providers.UpdateParamGroupParameters{
+				Parameters: map[string]string{
+					"maxmemory-policy": "noeviction",
+				},
+			}
+
+			Expect(paramParams).To(Equal(paramExpectedParameters))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       true,
+				OperationData: broker.Operation{Action: broker.ActionUpdating}.String(),
+			}))
+
+			Expect(fakeProvider.UpdateReplicationGroupCallCount()).To(Equal(1))
+			_, id, repParams := fakeProvider.UpdateReplicationGroupArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+
+			repExpectedParameters := providers.UpdateReplicationGroupParameters{
+				PreferredMaintenanceWindow: "mon:23:00-tue:01:30",
+			}
+
+			Expect(repParams).To(Equal(repExpectedParameters))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       true,
+				OperationData: broker.Operation{Action: broker.ActionUpdating}.String(),
+			}))
+		})
+
+		It("updates the redis replication group when the redis parameter group fails through the Provider", func() {
+			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "everything", "preferred_maintenance_window": "mon:23:00-tue:01:30"}`)
+
+			providerErr := errors.New("some-maxmemory-policy-error")
+			fakeProvider.UpdateParamGroupParametersReturnsOnCall(0, providerErr)
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(MatchError(providerErr))
+
+			Expect(fakeProvider.UpdateReplicationGroupCallCount()).To(Equal(1))
+			_, id, repParams := fakeProvider.UpdateReplicationGroupArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+
+			repExpectedParameters := providers.UpdateReplicationGroupParameters{
+				PreferredMaintenanceWindow: "mon:23:00-tue:01:30",
+			}
+
+			Expect(repParams).To(Equal(repExpectedParameters))
+		})
+
+		It("does not update the redis parameter group if the preferred-maintenance-window update fails", func() {
+			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction", "preferred_maintenance_window": "mon:23:00-tuesday:01:30"}`)
+
+			providerErr := errors.New("some-replication-group-error")
+			fakeProvider.UpdateReplicationGroupReturnsOnCall(0, providerErr)
+
+			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(MatchError(providerErr))
+
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(BeZero())
+		})
+
 		It("should return an error when no parameters are provided", func() {
-			validUpdateDetails.RawParameters = []byte(`{}`)
+			validUpdateDetails.RawParameters = []byte(``)
 
 			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
 			Expect(err).To(MatchError("no parameters provided"))
 
-			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(Equal(0))
 		})
 
 		It("rejects unknown parameters", func() {
@@ -479,14 +580,14 @@ var _ = Describe("Broker", func() {
 			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
 			Expect(err).To(MatchError("unknown parameter: unknown_foo"))
 
-			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(Equal(0))
 		})
 
 		It("should return an error when provider fails to update the service", func() {
 			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction"}`)
 
-			providerErr := errors.New("provider-err")
-			fakeProvider.UpdateReturnsOnCall(0, providerErr)
+			providerErr := errors.New("some-error-from-provider")
+			fakeProvider.UpdateParamGroupParametersReturnsOnCall(0, providerErr)
 
 			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
 			Expect(err).To(MatchError(providerErr))
@@ -498,7 +599,7 @@ var _ = Describe("Broker", func() {
 			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
 			Expect(err).To(MatchError("changing plans is not currently supported"))
 
-			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(Equal(0))
 		})
 
 		It("should return error when attempting to change service id", func() {
@@ -507,7 +608,7 @@ var _ = Describe("Broker", func() {
 			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
 			Expect(err).To(MatchError("changing plans is not currently supported"))
 
-			Expect(fakeProvider.UpdateCallCount()).To(Equal(0))
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(Equal(0))
 		})
 
 		It("sets a deadline by which the Provider request should complete", func() {
@@ -516,8 +617,8 @@ var _ = Describe("Broker", func() {
 			_, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(fakeProvider.UpdateCallCount()).To(Equal(1))
-			receivedContext, _, _ := fakeProvider.UpdateArgsForCall(0)
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(Equal(1))
+			receivedContext, _, _ := fakeProvider.UpdateParamGroupParametersArgsForCall(0)
 
 			_, hasDeadline := receivedContext.Deadline()
 
@@ -845,8 +946,8 @@ var _ = Describe("Broker", func() {
 		It("returns the instance details", func() {
 			fakeProvider := &mocks.FakeProvider{}
 			fakeProvider.GetInstanceParametersReturnsOnCall(0, providers.InstanceParameters{
-				MaintenanceWindow: "1234",
-				DailyBackupWindow: "5678",
+				PreferredMaintenanceWindow: "1234",
+				DailyBackupWindow:          "5678",
 			}, nil)
 			fakeProvider.GetInstanceTagsReturnsOnCall(0, map[string]string{"service-id": "test-service-id", "plan-id": "test-plan-id"}, nil)
 
@@ -859,8 +960,8 @@ var _ = Describe("Broker", func() {
 				PlanID:       "test-plan-id",
 				DashboardURL: "",
 				Parameters: providers.InstanceParameters{
-					MaintenanceWindow: "1234",
-					DailyBackupWindow: "5678",
+					PreferredMaintenanceWindow: "1234",
+					DailyBackupWindow:          "5678",
 				},
 			}))
 
