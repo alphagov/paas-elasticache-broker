@@ -8,7 +8,8 @@ import (
 
 // ElastiCache is a partially extracted interface from the AWS Elasticache SDK
 //
-//go:generate counterfeiter -o mocks/elasticache.go . ElastiCache
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+//counterfeiter:generate -o mocks/elasticache.go . ElastiCache
 type ElastiCache interface {
 	CreateCacheParameterGroupWithContext(ctx aws.Context, input *elasticache.CreateCacheParameterGroupInput, opts ...request.Option) (*elasticache.CreateCacheParameterGroupOutput, error)
 	CreateReplicationGroupWithContext(ctx aws.Context, input *elasticache.CreateReplicationGroupInput, opts ...request.Option) (*elasticache.CreateReplicationGroupOutput, error)

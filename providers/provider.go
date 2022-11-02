@@ -59,7 +59,7 @@ type InstanceParameters struct {
 
 // Provider is a general interface to implement the broker's functionality with a specific provider
 //
-//go:generate counterfeiter -o mocks/provider.go . Provider
+//counterfeiter:generate -o mocks/provider.go . Provider
 type Provider interface {
 	Provision(ctx context.Context, instanceID string, params ProvisionParameters) error
 	Update(ctx context.Context, instanceID string, params UpdateParameters) error
