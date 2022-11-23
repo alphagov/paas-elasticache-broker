@@ -129,7 +129,7 @@ func ReplicationGroupARN(session *session.Session, replicationGroupID string) (s
 	awsAccountID := aws.StringValue(getCallerIdentityOutput.Account)
 
 	return fmt.Sprintf(
-		"arn:%s:elasticache:%s:%s:cluster:%s-0001-001",
+		"arn:%s:elasticache:%s:%s:cluster:%s-001",
 		awsPartition,
 		awsRegion,
 		awsAccountID,

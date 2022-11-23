@@ -91,18 +91,20 @@ type FakeProvider struct {
 		result1 map[string]string
 		result2 error
 	}
-	GetStateStub        func(context.Context, string) (providers.ServiceState, string, error)
-	getStateMutex       sync.RWMutex
-	getStateArgsForCall []struct {
+	ProgressStateStub        func(context.Context, string, string, string) (providers.ServiceState, string, error)
+	progressStateMutex       sync.RWMutex
+	progressStateArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
+		arg3 string
+		arg4 string
 	}
-	getStateReturns struct {
+	progressStateReturns struct {
 		result1 providers.ServiceState
 		result2 string
 		result3 error
 	}
-	getStateReturnsOnCall map[int]struct {
+	progressStateReturnsOnCall map[int]struct {
 		result1 providers.ServiceState
 		result2 string
 		result3 error
@@ -132,6 +134,20 @@ type FakeProvider struct {
 	}
 	revokeCredentialsReturnsOnCall map[int]struct {
 		result1 error
+	}
+	StartFailoverTestStub        func(context.Context, string) (string, error)
+	startFailoverTestMutex       sync.RWMutex
+	startFailoverTestArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	startFailoverTestReturns struct {
+		result1 string
+		result2 error
+	}
+	startFailoverTestReturnsOnCall map[int]struct {
+		result1 string
+		result2 error
 	}
 	UpdateParamGroupParametersStub        func(context.Context, string, providers.UpdateParamGroupParameters) error
 	updateParamGroupParametersMutex       sync.RWMutex
@@ -549,19 +565,21 @@ func (fake *FakeProvider) GetInstanceTagsReturnsOnCall(i int, result1 map[string
 	}{result1, result2}
 }
 
-func (fake *FakeProvider) GetState(arg1 context.Context, arg2 string) (providers.ServiceState, string, error) {
-	fake.getStateMutex.Lock()
-	ret, specificReturn := fake.getStateReturnsOnCall[len(fake.getStateArgsForCall)]
-	fake.getStateArgsForCall = append(fake.getStateArgsForCall, struct {
+func (fake *FakeProvider) ProgressState(arg1 context.Context, arg2 string, arg3 string, arg4 string) (providers.ServiceState, string, error) {
+	fake.progressStateMutex.Lock()
+	ret, specificReturn := fake.progressStateReturnsOnCall[len(fake.progressStateArgsForCall)]
+	fake.progressStateArgsForCall = append(fake.progressStateArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
-	}{arg1, arg2})
-	stub := fake.GetStateStub
-	fakeReturns := fake.getStateReturns
-	fake.recordInvocation("GetState", []interface{}{arg1, arg2})
-	fake.getStateMutex.Unlock()
+		arg3 string
+		arg4 string
+	}{arg1, arg2, arg3, arg4})
+	stub := fake.ProgressStateStub
+	fakeReturns := fake.progressStateReturns
+	fake.recordInvocation("ProgressState", []interface{}{arg1, arg2, arg3, arg4})
+	fake.progressStateMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2)
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
@@ -569,48 +587,48 @@ func (fake *FakeProvider) GetState(arg1 context.Context, arg2 string) (providers
 	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3
 }
 
-func (fake *FakeProvider) GetStateCallCount() int {
-	fake.getStateMutex.RLock()
-	defer fake.getStateMutex.RUnlock()
-	return len(fake.getStateArgsForCall)
+func (fake *FakeProvider) ProgressStateCallCount() int {
+	fake.progressStateMutex.RLock()
+	defer fake.progressStateMutex.RUnlock()
+	return len(fake.progressStateArgsForCall)
 }
 
-func (fake *FakeProvider) GetStateCalls(stub func(context.Context, string) (providers.ServiceState, string, error)) {
-	fake.getStateMutex.Lock()
-	defer fake.getStateMutex.Unlock()
-	fake.GetStateStub = stub
+func (fake *FakeProvider) ProgressStateCalls(stub func(context.Context, string, string, string) (providers.ServiceState, string, error)) {
+	fake.progressStateMutex.Lock()
+	defer fake.progressStateMutex.Unlock()
+	fake.ProgressStateStub = stub
 }
 
-func (fake *FakeProvider) GetStateArgsForCall(i int) (context.Context, string) {
-	fake.getStateMutex.RLock()
-	defer fake.getStateMutex.RUnlock()
-	argsForCall := fake.getStateArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+func (fake *FakeProvider) ProgressStateArgsForCall(i int) (context.Context, string, string, string) {
+	fake.progressStateMutex.RLock()
+	defer fake.progressStateMutex.RUnlock()
+	argsForCall := fake.progressStateArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
-func (fake *FakeProvider) GetStateReturns(result1 providers.ServiceState, result2 string, result3 error) {
-	fake.getStateMutex.Lock()
-	defer fake.getStateMutex.Unlock()
-	fake.GetStateStub = nil
-	fake.getStateReturns = struct {
+func (fake *FakeProvider) ProgressStateReturns(result1 providers.ServiceState, result2 string, result3 error) {
+	fake.progressStateMutex.Lock()
+	defer fake.progressStateMutex.Unlock()
+	fake.ProgressStateStub = nil
+	fake.progressStateReturns = struct {
 		result1 providers.ServiceState
 		result2 string
 		result3 error
 	}{result1, result2, result3}
 }
 
-func (fake *FakeProvider) GetStateReturnsOnCall(i int, result1 providers.ServiceState, result2 string, result3 error) {
-	fake.getStateMutex.Lock()
-	defer fake.getStateMutex.Unlock()
-	fake.GetStateStub = nil
-	if fake.getStateReturnsOnCall == nil {
-		fake.getStateReturnsOnCall = make(map[int]struct {
+func (fake *FakeProvider) ProgressStateReturnsOnCall(i int, result1 providers.ServiceState, result2 string, result3 error) {
+	fake.progressStateMutex.Lock()
+	defer fake.progressStateMutex.Unlock()
+	fake.ProgressStateStub = nil
+	if fake.progressStateReturnsOnCall == nil {
+		fake.progressStateReturnsOnCall = make(map[int]struct {
 			result1 providers.ServiceState
 			result2 string
 			result3 error
 		})
 	}
-	fake.getStateReturnsOnCall[i] = struct {
+	fake.progressStateReturnsOnCall[i] = struct {
 		result1 providers.ServiceState
 		result2 string
 		result3 error
@@ -741,6 +759,71 @@ func (fake *FakeProvider) RevokeCredentialsReturnsOnCall(i int, result1 error) {
 	fake.revokeCredentialsReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
+}
+
+func (fake *FakeProvider) StartFailoverTest(arg1 context.Context, arg2 string) (string, error) {
+	fake.startFailoverTestMutex.Lock()
+	ret, specificReturn := fake.startFailoverTestReturnsOnCall[len(fake.startFailoverTestArgsForCall)]
+	fake.startFailoverTestArgsForCall = append(fake.startFailoverTestArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.StartFailoverTestStub
+	fakeReturns := fake.startFailoverTestReturns
+	fake.recordInvocation("StartFailoverTest", []interface{}{arg1, arg2})
+	fake.startFailoverTestMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeProvider) StartFailoverTestCallCount() int {
+	fake.startFailoverTestMutex.RLock()
+	defer fake.startFailoverTestMutex.RUnlock()
+	return len(fake.startFailoverTestArgsForCall)
+}
+
+func (fake *FakeProvider) StartFailoverTestCalls(stub func(context.Context, string) (string, error)) {
+	fake.startFailoverTestMutex.Lock()
+	defer fake.startFailoverTestMutex.Unlock()
+	fake.StartFailoverTestStub = stub
+}
+
+func (fake *FakeProvider) StartFailoverTestArgsForCall(i int) (context.Context, string) {
+	fake.startFailoverTestMutex.RLock()
+	defer fake.startFailoverTestMutex.RUnlock()
+	argsForCall := fake.startFailoverTestArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeProvider) StartFailoverTestReturns(result1 string, result2 error) {
+	fake.startFailoverTestMutex.Lock()
+	defer fake.startFailoverTestMutex.Unlock()
+	fake.StartFailoverTestStub = nil
+	fake.startFailoverTestReturns = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeProvider) StartFailoverTestReturnsOnCall(i int, result1 string, result2 error) {
+	fake.startFailoverTestMutex.Lock()
+	defer fake.startFailoverTestMutex.Unlock()
+	fake.StartFailoverTestStub = nil
+	if fake.startFailoverTestReturnsOnCall == nil {
+		fake.startFailoverTestReturnsOnCall = make(map[int]struct {
+			result1 string
+			result2 error
+		})
+	}
+	fake.startFailoverTestReturnsOnCall[i] = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeProvider) UpdateParamGroupParameters(arg1 context.Context, arg2 string, arg3 providers.UpdateParamGroupParameters) error {
@@ -884,12 +967,14 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.getInstanceParametersMutex.RUnlock()
 	fake.getInstanceTagsMutex.RLock()
 	defer fake.getInstanceTagsMutex.RUnlock()
-	fake.getStateMutex.RLock()
-	defer fake.getStateMutex.RUnlock()
+	fake.progressStateMutex.RLock()
+	defer fake.progressStateMutex.RUnlock()
 	fake.provisionMutex.RLock()
 	defer fake.provisionMutex.RUnlock()
 	fake.revokeCredentialsMutex.RLock()
 	defer fake.revokeCredentialsMutex.RUnlock()
+	fake.startFailoverTestMutex.RLock()
+	defer fake.startFailoverTestMutex.RUnlock()
 	fake.updateParamGroupParametersMutex.RLock()
 	defer fake.updateParamGroupParametersMutex.RUnlock()
 	fake.updateReplicationGroupMutex.RLock()

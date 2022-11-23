@@ -67,6 +67,9 @@ type InstanceParameters struct {
 	DailyBackupWindow          string           `json:"daily_backup_window"`
 	MaxMemoryPolicy            string           `json:"maxmemory_policy"`
 	CacheParameters            []CacheParameter `json:"cache_parameters"`
+	ActiveNodes                []string         `json:"active_nodes"`
+	PassiveNodes               []string         `json:"passive_nodes"`
+	AutoFailover               bool             `json:"auto_failover"`
 }
 
 type InstanceDetails struct {
@@ -85,13 +88,14 @@ type Provider interface {
 	UpdateReplicationGroup(ctx context.Context, instanceID string, params UpdateReplicationGroupParameters) error
 	UpdateParamGroupParameters(ctx context.Context, instanceID string, params UpdateParamGroupParameters) error
 	Deprovision(ctx context.Context, instanceID string, params DeprovisionParameters) error
-	GetState(ctx context.Context, instanceID string) (ServiceState, string, error)
+	ProgressState(ctx context.Context, instanceID string, operation string, primaryNode string) (ServiceState, string, error)
 	GetInstanceParameters(ctx context.Context, instanceID string) (InstanceParameters, error)
 	GetInstanceTags(ctx context.Context, instanceID string) (map[string]string, error)
 	GenerateCredentials(ctx context.Context, instanceID, bindingID string) (*Credentials, error)
 	RevokeCredentials(ctx context.Context, instanceID, bindingID string) error
 	DeleteCacheParameterGroup(ctx context.Context, instanceID string) error
 	FindSnapshots(ctx context.Context, instanceID string) ([]SnapshotInfo, error)
+	StartFailoverTest(ctx context.Context, instanceID string) (string, error)
 }
 
 // Credentials are the connection parameters for Redis clients

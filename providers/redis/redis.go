@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"net/url"
@@ -52,6 +53,27 @@ func NewProvider(
 		kmsKeyID:           kmsKeyID,
 		secretsManagerPath: strings.TrimRight(secretsManagerPath, "/"),
 	}
+}
+
+func GetPrimaryAndReplicaCacheClusterIds(replicationGroup *elasticache.ReplicationGroup) (primary string, replica string, err error) {
+	primaryNode := ""
+	replicaNode := ""
+	for _, nodeGroup := range replicationGroup.NodeGroups {
+		for _, nodeGroupMember := range nodeGroup.NodeGroupMembers {
+			if *nodeGroupMember.CurrentRole == "primary" {
+				primaryNode = *nodeGroupMember.CacheClusterId
+			} else if *nodeGroupMember.CurrentRole == "replica" {
+				replicaNode = *nodeGroupMember.CacheClusterId
+			}
+		}
+	}
+	if primaryNode == "" {
+		return "", "", errors.New("Unable to determine primary node")
+	}
+	if replicaNode == "" {
+		return "", "", errors.New("Unable to determine replica node")
+	}
+	return primaryNode, replicaNode, nil
 }
 
 func (p *RedisProvider) createCacheParameterGroup(ctx context.Context, replicationGroupID string, params providers.ProvisionParameters) error {
@@ -219,14 +241,19 @@ func (p *RedisProvider) Deprovision(ctx context.Context, instanceID string, para
 	return nil
 }
 
-func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasticache.ReplicationGroup) string {
+func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasticache.ReplicationGroup, stateOverride string) string {
 	tmpl := "%-20s : %s"
 	msgs := []string{"---"}
-	if replicationGroup.Status != nil {
-		msgs = append(msgs, fmt.Sprintf(tmpl, "status", *replicationGroup.Status))
+	if stateOverride == "" {
+		if replicationGroup.Status != nil {
+			msgs = append(msgs, fmt.Sprintf(tmpl, "status", *replicationGroup.Status))
+		} else {
+			msgs = append(msgs, fmt.Sprintf(tmpl, "status", "unknown"))
+		}
 	} else {
-		msgs = append(msgs, fmt.Sprintf(tmpl, "status", "unknown"))
+		msgs = append(msgs, fmt.Sprintf(tmpl, "status", stateOverride))
 	}
+
 	if replicationGroup.ReplicationGroupId != nil {
 		msgs = append(msgs, fmt.Sprintf(tmpl, "cluster id", *replicationGroup.ReplicationGroupId))
 	}
@@ -265,12 +292,21 @@ func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasti
 		msgs = append(msgs, fmt.Sprintf(tmpl, "daily backup window", *replicationGroup.SnapshotWindow))
 	}
 
+	if replicationGroup.AutomaticFailover != nil {
+		msgs = append(msgs, fmt.Sprintf(tmpl, "automatic failover", strings.TrimSpace(*replicationGroup.AutomaticFailover)))
+	}
+
 	return strings.Join(msgs, "\n           ")
 }
 
-// GetState returns with the state of an existing cluster
+// ProgressState returns with the state of an existing cluster and progresses any change in progress
 // If the cluster doesn't exist we return with the providers.NonExisting state
-func (p *RedisProvider) GetState(ctx context.Context, instanceID string) (providers.ServiceState, string, error) {
+func (p *RedisProvider) ProgressState(
+	ctx context.Context,
+	instanceID string,
+	operation string,
+	oldPrimaryNode string,
+) (providers.ServiceState, string, error) {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 
 	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
@@ -287,8 +323,62 @@ func (p *RedisProvider) GetState(ctx context.Context, instanceID string) (provid
 		return providers.ServiceState(""), "", fmt.Errorf("Invalid response from AWS: status is missing for %s", replicationGroupID)
 	}
 
-	message := p.getMessage(ctx, replicationGroup)
+	if *replicationGroup.Status == "available" {
 
+		if operation == "failover" {
+
+			primaryNode, nodeToFailOverTo, err := GetPrimaryAndReplicaCacheClusterIds(replicationGroup)
+			if err != nil {
+				return providers.ServiceState(""), "", err
+			}
+
+			// if aws state is "available" but with automatic failover "disabled", we have move state transitions to do
+			if *replicationGroup.AutomaticFailover == "disabled" {
+				message := p.getMessage(ctx, replicationGroup, "modifying")
+
+				// if the current aws primaryNode is the old one, we know we now need to cutover the primary
+				if oldPrimaryNode != "" && primaryNode == oldPrimaryNode {
+					p.logger.Info("failover-cutover-primary", lager.Data{
+						"instance-id":          instanceID,
+						"primary-node":         primaryNode,
+						"failover-node":        nodeToFailOverTo,
+						"replication-group-id": replicationGroupID,
+					})
+
+					_, err = p.elastiCache.ModifyReplicationGroupWithContext(ctx, &elasticache.ModifyReplicationGroupInput{
+						ReplicationGroupId: aws.String(replicationGroupID),
+						PrimaryClusterId:   aws.String(nodeToFailOverTo),
+						ApplyImmediately:   aws.Bool(true),
+					})
+					if err != nil {
+						return providers.ServiceState(""), message, err
+					}
+					return providers.ServiceState("modifying"), message, nil
+				} else {
+					// we have already cutover and we now need to enabled MutiAZ and AutoFailover
+
+					p.logger.Info("failover-enable-ha", lager.Data{
+						"instance-id":          instanceID,
+						"primary-node":         primaryNode,
+						"replication-group-id": replicationGroupID,
+					})
+					_, err = p.elastiCache.ModifyReplicationGroupWithContext(ctx, &elasticache.ModifyReplicationGroupInput{
+						AutomaticFailoverEnabled: aws.Bool(true),
+						MultiAZEnabled:           aws.Bool(true),
+						ReplicationGroupId:       aws.String(replicationGroupID),
+						ApplyImmediately:         aws.Bool(true),
+					})
+					if err != nil {
+						return providers.ServiceState(""), message, err
+					}
+					return providers.ServiceState("modifying"), message, nil
+				}
+			}
+
+		}
+
+	}
+	message := p.getMessage(ctx, replicationGroup, "")
 	return providers.ServiceState(*replicationGroup.Status), message, nil
 }
 
@@ -399,10 +489,7 @@ func (p *RedisProvider) RevokeCredentials(ctx context.Context, instanceID, bindi
 
 // FindSnapshots returns the list of snapshots found for a given instance ID
 func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([]providers.SnapshotInfo, error) {
-	replicationGroupID := GenerateReplicationGroupName(instanceID)
-	describeSnapshotsParams := &elasticache.DescribeSnapshotsInput{
-		ReplicationGroupId: aws.String(replicationGroupID),
-	}
+	describeSnapshotsParams := &elasticache.DescribeSnapshotsInput{}
 	snapshots := []*elasticache.Snapshot{}
 	err := p.elastiCache.DescribeSnapshotsPagesWithContext(ctx, describeSnapshotsParams, func(page *elasticache.DescribeSnapshotsOutput, lastPage bool) bool {
 		snapshots = append(snapshots, page.Snapshots...)
@@ -425,11 +512,17 @@ func (p *RedisProvider) FindSnapshots(ctx context.Context, instanceID string) ([
 		if err != nil {
 			return nil, err
 		}
-		snapshotInfos = append(snapshotInfos, providers.SnapshotInfo{
-			Name:       *snapshot.SnapshotName,
-			CreateTime: *snapshot.NodeSnapshots[0].SnapshotCreateTime,
-			Tags:       tagsValues(tagList.TagList),
-		})
+		tags := tagsValues(tagList.TagList)
+
+		if val, ok := tags["instance-id"]; ok {
+			if val == instanceID {
+				snapshotInfos = append(snapshotInfos, providers.SnapshotInfo{
+					Name:       *snapshot.SnapshotName,
+					CreateTime: *snapshot.NodeSnapshots[0].SnapshotCreateTime,
+					Tags:       tags,
+				})
+			}
+		}
 	}
 	return snapshotInfos, nil
 }
@@ -530,6 +623,26 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 		if replicationGroup.SnapshotWindow != nil {
 			instanceParameters.DailyBackupWindow = *replicationGroup.SnapshotWindow
 		}
+
+		if replicationGroup.AutomaticFailover != nil {
+			if *replicationGroup.AutomaticFailover == "enabled" {
+				instanceParameters.AutoFailover = true
+			} else {
+				instanceParameters.AutoFailover = false
+			}
+		}
+
+		for _, nodeGroup := range replicationGroup.NodeGroups {
+			for _, nodeGroupMember := range nodeGroup.NodeGroupMembers {
+				if *nodeGroupMember.CurrentRole == "primary" {
+					instanceParameters.ActiveNodes = append(instanceParameters.ActiveNodes, *nodeGroupMember.CacheClusterId)
+				}
+				if *nodeGroupMember.CurrentRole == "replica" {
+					instanceParameters.PassiveNodes = append(instanceParameters.PassiveNodes, *nodeGroupMember.CacheClusterId)
+				}
+			}
+		}
+
 		cacheParameters, err := p.describeCacheParameters(ctx, replicationGroupID)
 		if err != nil {
 			return instanceParameters, err
@@ -548,4 +661,34 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 		return instanceParameters, fmt.Errorf("Replication group does not have any member clusters: %s", replicationGroupID)
 	}
 	return instanceParameters, nil
+}
+
+func (p *RedisProvider) StartFailoverTest(ctx context.Context, instanceID string) (string, error) {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
+
+	primaryNode, _, err := GetPrimaryAndReplicaCacheClusterIds(replicationGroup)
+
+	if err != nil {
+		return "", err
+	}
+
+	p.logger.Info("failover-disable-ha", lager.Data{
+		"instance-id":          instanceID,
+		"primary-node":         primaryNode,
+		"replication-group-id": replicationGroupID,
+	})
+
+	_, err = p.elastiCache.ModifyReplicationGroupWithContext(ctx, &elasticache.ModifyReplicationGroupInput{
+		AutomaticFailoverEnabled: aws.Bool(false),
+		MultiAZEnabled:           aws.Bool(false),
+		ApplyImmediately:         aws.Bool(true),
+		ReplicationGroupId:       aws.String(replicationGroupID),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return primaryNode, nil
 }

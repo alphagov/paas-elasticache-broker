@@ -11,6 +11,21 @@ import (
 )
 
 type FakeElastiCache struct {
+	AddTagsToResourceWithContextStub        func(context.Context, *elasticache.AddTagsToResourceInput, ...request.Option) (*elasticache.TagListMessage, error)
+	addTagsToResourceWithContextMutex       sync.RWMutex
+	addTagsToResourceWithContextArgsForCall []struct {
+		arg1 context.Context
+		arg2 *elasticache.AddTagsToResourceInput
+		arg3 []request.Option
+	}
+	addTagsToResourceWithContextReturns struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}
+	addTagsToResourceWithContextReturnsOnCall map[int]struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}
 	CreateCacheParameterGroupWithContextStub        func(context.Context, *elasticache.CreateCacheParameterGroupInput, ...request.Option) (*elasticache.CreateCacheParameterGroupOutput, error)
 	createCacheParameterGroupWithContextMutex       sync.RWMutex
 	createCacheParameterGroupWithContextArgsForCall []struct {
@@ -175,8 +190,104 @@ type FakeElastiCache struct {
 		result1 *elasticache.ModifyReplicationGroupOutput
 		result2 error
 	}
+	RemoveTagsFromResourceWithContextStub        func(context.Context, *elasticache.RemoveTagsFromResourceInput, ...request.Option) (*elasticache.TagListMessage, error)
+	removeTagsFromResourceWithContextMutex       sync.RWMutex
+	removeTagsFromResourceWithContextArgsForCall []struct {
+		arg1 context.Context
+		arg2 *elasticache.RemoveTagsFromResourceInput
+		arg3 []request.Option
+	}
+	removeTagsFromResourceWithContextReturns struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}
+	removeTagsFromResourceWithContextReturnsOnCall map[int]struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}
+	TestFailoverWithContextStub        func(context.Context, *elasticache.TestFailoverInput, ...request.Option) (*elasticache.TestFailoverOutput, error)
+	testFailoverWithContextMutex       sync.RWMutex
+	testFailoverWithContextArgsForCall []struct {
+		arg1 context.Context
+		arg2 *elasticache.TestFailoverInput
+		arg3 []request.Option
+	}
+	testFailoverWithContextReturns struct {
+		result1 *elasticache.TestFailoverOutput
+		result2 error
+	}
+	testFailoverWithContextReturnsOnCall map[int]struct {
+		result1 *elasticache.TestFailoverOutput
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeElastiCache) AddTagsToResourceWithContext(arg1 context.Context, arg2 *elasticache.AddTagsToResourceInput, arg3 ...request.Option) (*elasticache.TagListMessage, error) {
+	fake.addTagsToResourceWithContextMutex.Lock()
+	ret, specificReturn := fake.addTagsToResourceWithContextReturnsOnCall[len(fake.addTagsToResourceWithContextArgsForCall)]
+	fake.addTagsToResourceWithContextArgsForCall = append(fake.addTagsToResourceWithContextArgsForCall, struct {
+		arg1 context.Context
+		arg2 *elasticache.AddTagsToResourceInput
+		arg3 []request.Option
+	}{arg1, arg2, arg3})
+	stub := fake.AddTagsToResourceWithContextStub
+	fakeReturns := fake.addTagsToResourceWithContextReturns
+	fake.recordInvocation("AddTagsToResourceWithContext", []interface{}{arg1, arg2, arg3})
+	fake.addTagsToResourceWithContextMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeElastiCache) AddTagsToResourceWithContextCallCount() int {
+	fake.addTagsToResourceWithContextMutex.RLock()
+	defer fake.addTagsToResourceWithContextMutex.RUnlock()
+	return len(fake.addTagsToResourceWithContextArgsForCall)
+}
+
+func (fake *FakeElastiCache) AddTagsToResourceWithContextCalls(stub func(context.Context, *elasticache.AddTagsToResourceInput, ...request.Option) (*elasticache.TagListMessage, error)) {
+	fake.addTagsToResourceWithContextMutex.Lock()
+	defer fake.addTagsToResourceWithContextMutex.Unlock()
+	fake.AddTagsToResourceWithContextStub = stub
+}
+
+func (fake *FakeElastiCache) AddTagsToResourceWithContextArgsForCall(i int) (context.Context, *elasticache.AddTagsToResourceInput, []request.Option) {
+	fake.addTagsToResourceWithContextMutex.RLock()
+	defer fake.addTagsToResourceWithContextMutex.RUnlock()
+	argsForCall := fake.addTagsToResourceWithContextArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeElastiCache) AddTagsToResourceWithContextReturns(result1 *elasticache.TagListMessage, result2 error) {
+	fake.addTagsToResourceWithContextMutex.Lock()
+	defer fake.addTagsToResourceWithContextMutex.Unlock()
+	fake.AddTagsToResourceWithContextStub = nil
+	fake.addTagsToResourceWithContextReturns = struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeElastiCache) AddTagsToResourceWithContextReturnsOnCall(i int, result1 *elasticache.TagListMessage, result2 error) {
+	fake.addTagsToResourceWithContextMutex.Lock()
+	defer fake.addTagsToResourceWithContextMutex.Unlock()
+	fake.AddTagsToResourceWithContextStub = nil
+	if fake.addTagsToResourceWithContextReturnsOnCall == nil {
+		fake.addTagsToResourceWithContextReturnsOnCall = make(map[int]struct {
+			result1 *elasticache.TagListMessage
+			result2 error
+		})
+	}
+	fake.addTagsToResourceWithContextReturnsOnCall[i] = struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeElastiCache) CreateCacheParameterGroupWithContext(arg1 context.Context, arg2 *elasticache.CreateCacheParameterGroupInput, arg3 ...request.Option) (*elasticache.CreateCacheParameterGroupOutput, error) {
@@ -903,9 +1014,143 @@ func (fake *FakeElastiCache) ModifyReplicationGroupWithContextReturnsOnCall(i in
 	}{result1, result2}
 }
 
+func (fake *FakeElastiCache) RemoveTagsFromResourceWithContext(arg1 context.Context, arg2 *elasticache.RemoveTagsFromResourceInput, arg3 ...request.Option) (*elasticache.TagListMessage, error) {
+	fake.removeTagsFromResourceWithContextMutex.Lock()
+	ret, specificReturn := fake.removeTagsFromResourceWithContextReturnsOnCall[len(fake.removeTagsFromResourceWithContextArgsForCall)]
+	fake.removeTagsFromResourceWithContextArgsForCall = append(fake.removeTagsFromResourceWithContextArgsForCall, struct {
+		arg1 context.Context
+		arg2 *elasticache.RemoveTagsFromResourceInput
+		arg3 []request.Option
+	}{arg1, arg2, arg3})
+	stub := fake.RemoveTagsFromResourceWithContextStub
+	fakeReturns := fake.removeTagsFromResourceWithContextReturns
+	fake.recordInvocation("RemoveTagsFromResourceWithContext", []interface{}{arg1, arg2, arg3})
+	fake.removeTagsFromResourceWithContextMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeElastiCache) RemoveTagsFromResourceWithContextCallCount() int {
+	fake.removeTagsFromResourceWithContextMutex.RLock()
+	defer fake.removeTagsFromResourceWithContextMutex.RUnlock()
+	return len(fake.removeTagsFromResourceWithContextArgsForCall)
+}
+
+func (fake *FakeElastiCache) RemoveTagsFromResourceWithContextCalls(stub func(context.Context, *elasticache.RemoveTagsFromResourceInput, ...request.Option) (*elasticache.TagListMessage, error)) {
+	fake.removeTagsFromResourceWithContextMutex.Lock()
+	defer fake.removeTagsFromResourceWithContextMutex.Unlock()
+	fake.RemoveTagsFromResourceWithContextStub = stub
+}
+
+func (fake *FakeElastiCache) RemoveTagsFromResourceWithContextArgsForCall(i int) (context.Context, *elasticache.RemoveTagsFromResourceInput, []request.Option) {
+	fake.removeTagsFromResourceWithContextMutex.RLock()
+	defer fake.removeTagsFromResourceWithContextMutex.RUnlock()
+	argsForCall := fake.removeTagsFromResourceWithContextArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeElastiCache) RemoveTagsFromResourceWithContextReturns(result1 *elasticache.TagListMessage, result2 error) {
+	fake.removeTagsFromResourceWithContextMutex.Lock()
+	defer fake.removeTagsFromResourceWithContextMutex.Unlock()
+	fake.RemoveTagsFromResourceWithContextStub = nil
+	fake.removeTagsFromResourceWithContextReturns = struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeElastiCache) RemoveTagsFromResourceWithContextReturnsOnCall(i int, result1 *elasticache.TagListMessage, result2 error) {
+	fake.removeTagsFromResourceWithContextMutex.Lock()
+	defer fake.removeTagsFromResourceWithContextMutex.Unlock()
+	fake.RemoveTagsFromResourceWithContextStub = nil
+	if fake.removeTagsFromResourceWithContextReturnsOnCall == nil {
+		fake.removeTagsFromResourceWithContextReturnsOnCall = make(map[int]struct {
+			result1 *elasticache.TagListMessage
+			result2 error
+		})
+	}
+	fake.removeTagsFromResourceWithContextReturnsOnCall[i] = struct {
+		result1 *elasticache.TagListMessage
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeElastiCache) TestFailoverWithContext(arg1 context.Context, arg2 *elasticache.TestFailoverInput, arg3 ...request.Option) (*elasticache.TestFailoverOutput, error) {
+	fake.testFailoverWithContextMutex.Lock()
+	ret, specificReturn := fake.testFailoverWithContextReturnsOnCall[len(fake.testFailoverWithContextArgsForCall)]
+	fake.testFailoverWithContextArgsForCall = append(fake.testFailoverWithContextArgsForCall, struct {
+		arg1 context.Context
+		arg2 *elasticache.TestFailoverInput
+		arg3 []request.Option
+	}{arg1, arg2, arg3})
+	stub := fake.TestFailoverWithContextStub
+	fakeReturns := fake.testFailoverWithContextReturns
+	fake.recordInvocation("TestFailoverWithContext", []interface{}{arg1, arg2, arg3})
+	fake.testFailoverWithContextMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeElastiCache) TestFailoverWithContextCallCount() int {
+	fake.testFailoverWithContextMutex.RLock()
+	defer fake.testFailoverWithContextMutex.RUnlock()
+	return len(fake.testFailoverWithContextArgsForCall)
+}
+
+func (fake *FakeElastiCache) TestFailoverWithContextCalls(stub func(context.Context, *elasticache.TestFailoverInput, ...request.Option) (*elasticache.TestFailoverOutput, error)) {
+	fake.testFailoverWithContextMutex.Lock()
+	defer fake.testFailoverWithContextMutex.Unlock()
+	fake.TestFailoverWithContextStub = stub
+}
+
+func (fake *FakeElastiCache) TestFailoverWithContextArgsForCall(i int) (context.Context, *elasticache.TestFailoverInput, []request.Option) {
+	fake.testFailoverWithContextMutex.RLock()
+	defer fake.testFailoverWithContextMutex.RUnlock()
+	argsForCall := fake.testFailoverWithContextArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeElastiCache) TestFailoverWithContextReturns(result1 *elasticache.TestFailoverOutput, result2 error) {
+	fake.testFailoverWithContextMutex.Lock()
+	defer fake.testFailoverWithContextMutex.Unlock()
+	fake.TestFailoverWithContextStub = nil
+	fake.testFailoverWithContextReturns = struct {
+		result1 *elasticache.TestFailoverOutput
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeElastiCache) TestFailoverWithContextReturnsOnCall(i int, result1 *elasticache.TestFailoverOutput, result2 error) {
+	fake.testFailoverWithContextMutex.Lock()
+	defer fake.testFailoverWithContextMutex.Unlock()
+	fake.TestFailoverWithContextStub = nil
+	if fake.testFailoverWithContextReturnsOnCall == nil {
+		fake.testFailoverWithContextReturnsOnCall = make(map[int]struct {
+			result1 *elasticache.TestFailoverOutput
+			result2 error
+		})
+	}
+	fake.testFailoverWithContextReturnsOnCall[i] = struct {
+		result1 *elasticache.TestFailoverOutput
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeElastiCache) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
+	fake.addTagsToResourceWithContextMutex.RLock()
+	defer fake.addTagsToResourceWithContextMutex.RUnlock()
 	fake.createCacheParameterGroupWithContextMutex.RLock()
 	defer fake.createCacheParameterGroupWithContextMutex.RUnlock()
 	fake.createReplicationGroupWithContextMutex.RLock()
@@ -928,6 +1173,10 @@ func (fake *FakeElastiCache) Invocations() map[string][][]interface{} {
 	defer fake.modifyCacheParameterGroupWithContextMutex.RUnlock()
 	fake.modifyReplicationGroupWithContextMutex.RLock()
 	defer fake.modifyReplicationGroupWithContextMutex.RUnlock()
+	fake.removeTagsFromResourceWithContextMutex.RLock()
+	defer fake.removeTagsFromResourceWithContextMutex.RUnlock()
+	fake.testFailoverWithContextMutex.RLock()
+	defer fake.testFailoverWithContextMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

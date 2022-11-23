@@ -12,6 +12,7 @@ import (
 	. "github.com/alphagov/paas-elasticache-broker/providers/redis"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
@@ -61,6 +62,55 @@ var _ = Describe("Provider", func() {
 			kmsKeyID,
 			secretsManagerPath,
 		)
+	})
+
+	Context("GetPrimaryAndReplicaCacheClusterIds", func() {
+		var (
+			replicationGroup *elasticache.ReplicationGroup
+		)
+
+		BeforeEach(func() {
+			// Set up dummy data for the replication group
+			replicationGroup = &elasticache.ReplicationGroup{
+				NodeGroups: []*elasticache.NodeGroup{
+					{
+						NodeGroupMembers: []*elasticache.NodeGroupMember{
+							{
+								CurrentRole:    aws.String("primary"),
+								CacheClusterId: aws.String("primary-cluster-id"),
+							},
+							{
+								CurrentRole:    aws.String("replica"),
+								CacheClusterId: aws.String("replica-cluster-id"),
+							},
+						},
+					},
+				},
+			}
+		})
+
+		It("returns the primary and replica cache cluster IDs", func() {
+			primaryNode, replicaNode, err := GetPrimaryAndReplicaCacheClusterIds(replicationGroup)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(primaryNode).To(Equal("primary-cluster-id"))
+			Expect(replicaNode).To(Equal("replica-cluster-id"))
+		})
+
+		It("returns an error if the primary node cannot be determined", func() {
+			// Modify the dummy data to not include a primary node
+			replicationGroup.NodeGroups[0].NodeGroupMembers[0].CurrentRole = aws.String("replica")
+			_, _, err := GetPrimaryAndReplicaCacheClusterIds(replicationGroup)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("Unable to determine primary node"))
+		})
+
+		It("returns an error if the replica node cannot be determined", func() {
+			// Modify the dummy data to not include a replica node
+			replicationGroup.NodeGroups[0].NodeGroupMembers[1].CurrentRole = aws.String("primary")
+			_, _, err := GetPrimaryAndReplicaCacheClusterIds(replicationGroup)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("Unable to determine replica node"))
+		})
 	})
 
 	Context("when provisioning", func() {
@@ -442,7 +492,7 @@ var _ = Describe("Provider", func() {
 			instanceID := "foobar"
 			ctx := context.Background()
 
-			state, stateMessage, stateErr := provider.GetState(ctx, instanceID)
+			state, stateMessage, stateErr := provider.ProgressState(ctx, instanceID, "", "")
 
 			Expect(state).To(Equal(providers.ServiceState("test status")))
 			Expect(stateMessage).To(ContainSubstring("status               : test status"))
@@ -456,7 +506,7 @@ var _ = Describe("Provider", func() {
 			}))
 		})
 
-		Describe("GetState", func() {
+		Describe("ProgressState", func() {
 
 			var (
 				snapshotWindow     = aws.String("05:01-09:01")
@@ -464,6 +514,9 @@ var _ = Describe("Provider", func() {
 				replicationGroupID = "cf-qwkec4pxhft6q"
 				cacheClusterId     = replicationGroupID + "-001-001"
 				instanceID         = "foobar"
+				autoFailover       = aws.String("enabled")
+				primaryNode        = aws.String("cf-qwkec4pxhft6q-001")
+				replicaNode        = aws.String("cf-qwkec4pxhft6q-002")
 			)
 
 			JustBeforeEach(func() {
@@ -471,11 +524,27 @@ var _ = Describe("Provider", func() {
 					ReplicationGroups: []*elasticache.ReplicationGroup{
 						{
 							ReplicationGroupId: aws.String(replicationGroupID),
-							Status:             aws.String("OK"),
+							Status:             aws.String("available"),
+							AutomaticFailover:  autoFailover,
 							MemberClusters: []*string{
 								aws.String(cacheClusterId),
 							},
 							SnapshotWindow: snapshotWindow,
+
+							NodeGroups: []*elasticache.NodeGroup{
+								{
+									NodeGroupMembers: []*elasticache.NodeGroupMember{
+										{
+											CurrentRole:    aws.String("primary"),
+											CacheClusterId: primaryNode,
+										},
+										{
+											CurrentRole:    aws.String("replica"),
+											CacheClusterId: replicaNode,
+										},
+									},
+								},
+							},
 						},
 					},
 				}, nil)
@@ -509,16 +578,17 @@ var _ = Describe("Provider", func() {
 			})
 
 			It("returns a message with details for useful configuration values", func() {
-				_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+				_, stateMessage, stateErr := provider.ProgressState(context.Background(), instanceID, "", "")
 				Expect(stateErr).ToNot(HaveOccurred())
 
 				Expect(mockElasticache.DescribeCacheParametersWithContextCallCount()).To(Equal(1))
-				Expect(stateMessage).To(ContainSubstring("status               : OK"))
+				Expect(stateMessage).To(ContainSubstring("status               : available"))
 				Expect(stateMessage).To(ContainSubstring("engine version       : 9.9.9"))
 				Expect(stateMessage).To(ContainSubstring("maxmemory policy     : test-ttl"))
 				Expect(stateMessage).To(ContainSubstring("daily backup window  : 05:01-09:01"))
 				Expect(stateMessage).To(ContainSubstring("maintenance window   : sun:23:01-mon:01:31"))
 				Expect(stateMessage).To(ContainSubstring("cluster enabled      : yes"))
+				Expect(stateMessage).To(ContainSubstring("automatic failover   : enabled"))
 			})
 
 			Context("when it doesn't have automated backup", func() {
@@ -526,7 +596,7 @@ var _ = Describe("Provider", func() {
 					snapshotWindow = nil
 				})
 				It("won't return the daily backup window in the message", func() {
-					_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+					_, stateMessage, stateErr := provider.ProgressState(context.Background(), instanceID, "", "")
 					Expect(stateErr).ToNot(HaveOccurred())
 					Expect(stateMessage).ToNot(ContainSubstring("daily backup window"))
 				})
@@ -537,9 +607,53 @@ var _ = Describe("Provider", func() {
 					maintenanceWindow = nil
 				})
 				It("won't return the field", func() {
-					_, stateMessage, stateErr := provider.GetState(context.Background(), instanceID)
+					_, stateMessage, stateErr := provider.ProgressState(context.Background(), instanceID, "", "")
 					Expect(stateErr).ToNot(HaveOccurred())
 					Expect(stateMessage).ToNot(ContainSubstring("maintenance window"))
+				})
+			})
+
+			Context("when operation is failover", func() {
+				BeforeEach(func() {
+					autoFailover = aws.String("disabled")
+				})
+				It("will trigger node failover", func() {
+					mockElasticache.ModifyReplicationGroupWithContextReturns(&elasticache.ModifyReplicationGroupOutput{}, nil)
+					_, stateMessage, stateErr := provider.ProgressState(
+						context.Background(),
+						instanceID, "failover",
+						"cf-qwkec4pxhft6q-001",
+					)
+
+					_, input, _ := mockElasticache.ModifyReplicationGroupWithContextArgsForCall(0)
+					Expect(input.ApplyImmediately).To(Equal(aws.Bool(true)))
+					Expect(input.ReplicationGroupId).To(Equal(aws.String(replicationGroupID)))
+					Expect(input.PrimaryClusterId).To(Equal(replicaNode))
+
+					Expect(stateErr).ToNot(HaveOccurred())
+					Expect(stateMessage).To(ContainSubstring("status               : modifying"))
+					Expect(stateMessage).To(ContainSubstring("automatic failover   : disabled"))
+					Expect(mockElasticache.ModifyReplicationGroupWithContextCallCount()).To(Equal(1))
+				})
+				It("will trigger autofailover enable", func() {
+					mockElasticache.ModifyReplicationGroupWithContextReturns(&elasticache.ModifyReplicationGroupOutput{}, nil)
+					_, stateMessage, stateErr := provider.ProgressState(
+						context.Background(),
+						instanceID,
+						"failover",
+						"cf-qwkec4pxhft6q-002",
+					)
+
+					_, input, _ := mockElasticache.ModifyReplicationGroupWithContextArgsForCall(0)
+					Expect(input.ApplyImmediately).To(Equal(aws.Bool(true)))
+					Expect(input.ReplicationGroupId).To(Equal(aws.String(replicationGroupID)))
+					Expect(input.MultiAZEnabled).To(Equal(aws.Bool(true)))
+					Expect(input.AutomaticFailoverEnabled).To(Equal(aws.Bool(true)))
+
+					Expect(stateErr).ToNot(HaveOccurred())
+					Expect(stateMessage).To(ContainSubstring("status               : modifying"))
+					Expect(stateMessage).To(ContainSubstring("automatic failover   : disabled"))
+					Expect(mockElasticache.ModifyReplicationGroupWithContextCallCount()).To(Equal(1))
 				})
 			})
 		})
@@ -548,7 +662,7 @@ var _ = Describe("Provider", func() {
 			describeErr := errors.New("some error")
 			mockElasticache.DescribeReplicationGroupsWithContextReturns(nil, describeErr)
 
-			_, _, stateErr := provider.GetState(context.Background(), "foobar")
+			_, _, stateErr := provider.ProgressState(context.Background(), "foobar", "", "")
 			Expect(stateErr).To(MatchError(describeErr))
 		})
 
@@ -556,7 +670,7 @@ var _ = Describe("Provider", func() {
 			describeErr := awserr.New(elasticache.ErrCodeReplicationGroupNotFoundFault, "some message", nil)
 			mockElasticache.DescribeReplicationGroupsWithContextReturns(nil, describeErr)
 
-			state, stateMessage, stateErr := provider.GetState(context.Background(), "foobar")
+			state, stateMessage, stateErr := provider.ProgressState(context.Background(), "foobar", "", "")
 			Expect(state).To(Equal(providers.NonExisting))
 			Expect(stateMessage).To(Equal("Replication group does not exist: cf-qwkec4pxhft6q"))
 			Expect(stateErr).ToNot(HaveOccurred())
@@ -567,7 +681,7 @@ var _ = Describe("Provider", func() {
 				ReplicationGroups: []*elasticache.ReplicationGroup{},
 			}
 			mockElasticache.DescribeReplicationGroupsWithContextReturns(describeOutput, nil)
-			_, _, stateErr := provider.GetState(context.Background(), "foobar")
+			_, _, stateErr := provider.ProgressState(context.Background(), "foobar", "", "")
 			Expect(stateErr).To(MatchError("Invalid response from AWS: no replication groups returned for cf-qwkec4pxhft6q"))
 		})
 
@@ -576,7 +690,7 @@ var _ = Describe("Provider", func() {
 				ReplicationGroups: []*elasticache.ReplicationGroup{{}},
 			}
 			mockElasticache.DescribeReplicationGroupsWithContextReturns(describeOutput, nil)
-			_, _, stateErr := provider.GetState(context.Background(), "foobar")
+			_, _, stateErr := provider.ProgressState(context.Background(), "foobar", "", "")
 			Expect(stateErr).To(MatchError("Invalid response from AWS: status is missing for cf-qwkec4pxhft6q"))
 		})
 
@@ -868,6 +982,10 @@ var _ = Describe("Provider", func() {
 				&elasticache.TagListMessage{
 					TagList: []*elasticache.Tag{
 						{
+							Key:   aws.String("instance-id"),
+							Value: aws.String(instanceID),
+						},
+						{
 							Key:   aws.String("Tag1"),
 							Value: aws.String("Val1"),
 						},
@@ -916,16 +1034,18 @@ var _ = Describe("Provider", func() {
 					Name:       "snapshot1",
 					CreateTime: now.Add(-2 * 24 * time.Hour),
 					Tags: map[string]string{
-						"Tag1": "Val1",
-						"Tag2": "Val2",
+						"Tag1":        "Val1",
+						"Tag2":        "Val2",
+						"instance-id": instanceID,
 					},
 				},
 				providers.SnapshotInfo{
 					Name:       "snapshot2",
 					CreateTime: now.Add(-1 * 24 * time.Hour),
 					Tags: map[string]string{
-						"Tag1": "Val1",
-						"Tag2": "Val2",
+						"Tag1":        "Val1",
+						"Tag2":        "Val2",
+						"instance-id": instanceID,
 					},
 				},
 			))
@@ -1131,6 +1251,162 @@ var _ = Describe("Provider", func() {
 		})
 	})
 
+	Describe("Test Failover", func() {
+		Context("when performing complete failover", func() {
+			BeforeEach(func() {
+				describeReplicationGroupsOutput := &elasticache.DescribeReplicationGroupsOutput{
+					ReplicationGroups: []*elasticache.ReplicationGroup{
+						{
+							SnapshotWindow: aws.String("some-snapshot-window"),
+
+							Status: aws.String("available"),
+
+							AutomaticFailover: aws.String("enabled"),
+							MultiAZ:           aws.String("enabled"),
+
+							NodeGroups: []*elasticache.NodeGroup{
+								{
+									NodeGroupMembers: []*elasticache.NodeGroupMember{
+										{
+											CurrentRole:    aws.String("primary"),
+											CacheClusterId: aws.String("cf-qwkec4pxhft6q-001"),
+										},
+										{
+											CurrentRole:    aws.String("replica"),
+											CacheClusterId: aws.String("cf-qwkec4pxhft6q-002"),
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+
+				replicationGroup := describeReplicationGroupsOutput.ReplicationGroups[0]
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(0,
+					awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+
+				replicationGroup.Status = aws.String("modifying")
+				replicationGroup.AutomaticFailover = aws.String("disabling")
+				replicationGroup.MultiAZ = aws.String("disabling")
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(1,
+					awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+
+				replicationGroup.Status = aws.String("available")
+				replicationGroup.AutomaticFailover = aws.String("disabled")
+				replicationGroup.MultiAZ = aws.String("disabled")
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(2,
+					awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+
+				replicationGroup.Status = aws.String("modifying")
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(3,
+					awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+
+				replicationGroup.Status = aws.String("available")
+				replicationGroup.NodeGroups[0].NodeGroupMembers[0].CurrentRole = aws.String("replica")
+				replicationGroup.NodeGroups[0].NodeGroupMembers[1].CurrentRole = aws.String("primary")
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(4,
+					awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+
+				replicationGroup.Status = aws.String("modifying")
+				replicationGroup.AutomaticFailover = aws.String("enabling")
+				replicationGroup.MultiAZ = aws.String("enabling")
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(5,
+					awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+
+				replicationGroup.Status = aws.String("available")
+				replicationGroup.AutomaticFailover = aws.String("enabled")
+				replicationGroup.MultiAZ = aws.String("enabled")
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(5,
+					awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+
+				mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(6,
+					&elasticache.DescribeReplicationGroupsOutput{}, fmt.Errorf("We shouldn't have gotten this far"))
+			})
+
+			It("Fails over successfully", func() {
+
+				primaryNode, err := provider.StartFailoverTest(ctx, instanceID)
+				Expect(primaryNode).To(Equal("cf-qwkec4pxhft6q-001"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(mockElasticache.ModifyReplicationGroupWithContextCallCount()).To(Equal(1))
+				Expect(mockElasticache.DescribeReplicationGroupsWithContextCallCount()).To(Equal(1))
+
+				receivedCtx, replicationGroupInput, _ := mockElasticache.ModifyReplicationGroupWithContextArgsForCall(0)
+				Expect(receivedCtx).To(Equal(ctx))
+				Expect(replicationGroupInput.ApplyImmediately).To(Equal(aws.Bool(true)))
+				Expect(replicationGroupInput.AutomaticFailoverEnabled).To(Equal(aws.Bool(false)))
+				Expect(replicationGroupInput.MultiAZEnabled).To(Equal(aws.Bool(false)))
+				Expect(replicationGroupInput.ReplicationGroupId).To(Equal(aws.String(replicationGroupID)))
+
+				var message string
+				Eventually(
+					func() providers.ServiceState {
+						state, message2, err := provider.ProgressState(
+							ctx,
+							instanceID,
+							"failover",
+							"cf-qwkec4pxhft6q-001",
+						)
+						message = message2
+						Expect(err).ToNot(HaveOccurred())
+						return state
+					},
+					10*time.Second,
+					0,
+				).Should(
+					Equal(providers.ServiceState("available")),
+				)
+
+				Expect(message).To(ContainSubstring("automatic failover   : enabled"))
+				Expect(mockElasticache.ModifyReplicationGroupWithContextCallCount()).To(Equal(3))
+
+				receivedCtx, replicationGroupInput, _ = mockElasticache.ModifyReplicationGroupWithContextArgsForCall(1)
+				Expect(receivedCtx).To(Equal(ctx))
+				Expect(replicationGroupInput.ApplyImmediately).To(Equal(aws.Bool(true)))
+				Expect(replicationGroupInput.PrimaryClusterId).To(Equal(aws.String("cf-qwkec4pxhft6q-002")))
+				Expect(replicationGroupInput.ReplicationGroupId).To(Equal(aws.String(replicationGroupID)))
+
+				receivedCtx, replicationGroupInput, _ = mockElasticache.ModifyReplicationGroupWithContextArgsForCall(2)
+				Expect(receivedCtx).To(Equal(ctx))
+				Expect(replicationGroupInput.ApplyImmediately).To(Equal(aws.Bool(true)))
+				Expect(replicationGroupInput.AutomaticFailoverEnabled).To(Equal(aws.Bool(true)))
+				Expect(replicationGroupInput.MultiAZEnabled).To(Equal(aws.Bool(true)))
+				Expect(replicationGroupInput.ReplicationGroupId).To(Equal(aws.String(replicationGroupID)))
+			})
+		})
+
+		It("fails if primary node can not be determined", func() {
+			describeReplicationGroupsOutput := &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{
+					{
+						NodeGroups: []*elasticache.NodeGroup{
+							{
+								NodeGroupMembers: []*elasticache.NodeGroupMember{
+									{
+										CurrentRole:    aws.String("replica"),
+										CacheClusterId: aws.String("cf-qwkec4pxhft6q-001"),
+									},
+									{
+										CurrentRole:    aws.String("replica"),
+										CacheClusterId: aws.String("cf-qwkec4pxhft6q-002"),
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			mockElasticache.DescribeReplicationGroupsWithContextReturnsOnCall(0,
+				awsutil.CopyOf(describeReplicationGroupsOutput).(*elasticache.DescribeReplicationGroupsOutput), nil)
+			_, err := provider.StartFailoverTest(ctx, instanceID)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(errors.New("Unable to determine primary node")))
+		})
+
+	})
+
 	Describe("GetInstanceParameters", func() {
 		BeforeEach(func() {
 
@@ -1139,6 +1415,23 @@ var _ = Describe("Provider", func() {
 					{
 						MemberClusters: []*string{aws.String("some-cluster-id")},
 						SnapshotWindow: aws.String("some-snapshot-window"),
+
+						AutomaticFailover: aws.String("enabled"),
+
+						NodeGroups: []*elasticache.NodeGroup{
+							{
+								NodeGroupMembers: []*elasticache.NodeGroupMember{
+									{
+										CurrentRole:    aws.String("primary"),
+										CacheClusterId: aws.String("cf-qwkec4pxhft6q-001"),
+									},
+									{
+										CurrentRole:    aws.String("replica"),
+										CacheClusterId: aws.String("cf-qwkec4pxhft6q-002"),
+									},
+								},
+							},
+						},
 					},
 				},
 			}
@@ -1176,6 +1469,9 @@ var _ = Describe("Provider", func() {
 				PreferredMaintenanceWindow: "some-maintenance-window",
 				DailyBackupWindow:          "some-snapshot-window",
 				MaxMemoryPolicy:            "some-maxmemory-policy",
+				ActiveNodes:                []string{"cf-qwkec4pxhft6q-001"},
+				PassiveNodes:               []string{"cf-qwkec4pxhft6q-002"},
+				AutoFailover:               true,
 				CacheParameters: []providers.CacheParameter{
 					{
 						ParameterName:  "some-parameter-name",
@@ -1205,6 +1501,9 @@ var _ = Describe("Provider", func() {
 				PreferredMaintenanceWindow: "",
 				DailyBackupWindow:          "some-snapshot-window",
 				MaxMemoryPolicy:            "some-maxmemory-policy",
+				ActiveNodes:                []string{"cf-qwkec4pxhft6q-001"},
+				PassiveNodes:               []string{"cf-qwkec4pxhft6q-002"},
+				AutoFailover:               true,
 				CacheParameters: []providers.CacheParameter{
 					{
 						ParameterName:  "some-parameter-name",
