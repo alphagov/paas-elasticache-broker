@@ -530,6 +530,18 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 		if replicationGroup.SnapshotWindow != nil {
 			instanceParameters.DailyBackupWindow = *replicationGroup.SnapshotWindow
 		}
+
+		for _, nodeGroup := range replicationGroup.NodeGroups {
+			for _, nodeGroupMember := range nodeGroup.NodeGroupMembers {
+				if *nodeGroupMember.CurrentRole == "primary" {
+					instanceParameters.ActiveNodes = append(instanceParameters.ActiveNodes, *nodeGroupMember.CacheClusterId)
+				}
+				if *nodeGroupMember.CurrentRole == "replica" {
+					instanceParameters.PassiveNodes = append(instanceParameters.PassiveNodes, *nodeGroupMember.CacheClusterId)
+				}
+			}
+		}
+
 		cacheParameters, err := p.describeCacheParameters(ctx, replicationGroupID)
 		if err != nil {
 			return instanceParameters, err
@@ -548,4 +560,23 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 		return instanceParameters, fmt.Errorf("Replication group does not have any member clusters: %s", replicationGroupID)
 	}
 	return instanceParameters, nil
+}
+
+func (p *RedisProvider) ForceFailover(ctx context.Context, instanceID string) error {
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.elastiCache.TestFailoverWithContext(ctx, &elasticache.TestFailoverInput{
+		ReplicationGroupId: aws.String(replicationGroupID),
+		NodeGroupId:        aws.String(*replicationGroup.NodeGroups[0].NodeGroupId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

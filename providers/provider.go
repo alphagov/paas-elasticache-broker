@@ -67,6 +67,8 @@ type InstanceParameters struct {
 	DailyBackupWindow          string           `json:"daily_backup_window"`
 	MaxMemoryPolicy            string           `json:"maxmemory_policy"`
 	CacheParameters            []CacheParameter `json:"cache_parameters"`
+	ActiveNodes                []string         `json:"active_nodes"`
+	PassiveNodes               []string         `json:"passive_nodes"`
 }
 
 type InstanceDetails struct {
@@ -92,6 +94,7 @@ type Provider interface {
 	RevokeCredentials(ctx context.Context, instanceID, bindingID string) error
 	DeleteCacheParameterGroup(ctx context.Context, instanceID string) error
 	FindSnapshots(ctx context.Context, instanceID string) ([]SnapshotInfo, error)
+	ForceFailover(ctx context.Context, instanceID string) error
 }
 
 // Credentials are the connection parameters for Redis clients
