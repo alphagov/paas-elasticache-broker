@@ -265,6 +265,10 @@ func (p *RedisProvider) getMessage(ctx context.Context, replicationGroup *elasti
 		msgs = append(msgs, fmt.Sprintf(tmpl, "daily backup window", *replicationGroup.SnapshotWindow))
 	}
 
+	if replicationGroup.AutomaticFailover != nil {
+		msgs = append(msgs, fmt.Sprintf(tmpl, "automatic failover", strings.TrimSpace(*replicationGroup.AutomaticFailover)))
+	}
+
 	return strings.Join(msgs, "\n           ")
 }
 
@@ -569,11 +573,41 @@ func (p *RedisProvider) ForceFailover(ctx context.Context, instanceID string) er
 		return err
 	}
 
-	_, err = p.elastiCache.TestFailoverWithContext(ctx, &elasticache.TestFailoverInput{
-		ReplicationGroupId: aws.String(replicationGroupID),
-		NodeGroupId:        aws.String(*replicationGroup.NodeGroups[0].NodeGroupId),
-	})
+	nodeToFailOverTo := ""
+	for _, nodeGroup := range replicationGroup.NodeGroups {
+		for _, nodeGroupMember := range nodeGroup.NodeGroupMembers {
+			if *nodeGroupMember.CurrentRole == "replica" {
+				nodeToFailOverTo = *nodeGroupMember.CacheClusterId
+				break
+			}
+		}
+		if nodeToFailOverTo != "" {
+			break
+		}
+	}
 
+	_, err = p.elastiCache.ModifyReplicationGroupWithContext(ctx, &elasticache.ModifyReplicationGroupInput{
+		ReplicationGroupId: aws.String(replicationGroupID),
+		PrimaryClusterId:   aws.String(nodeToFailOverTo),
+		ApplyImmediately:   aws.Bool(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *RedisProvider) AutoFailover(ctx context.Context, instanceID string, enable bool) error {
+
+	replicationGroupID := GenerateReplicationGroupName(instanceID)
+
+	_, err := p.elastiCache.ModifyReplicationGroupWithContext(ctx, &elasticache.ModifyReplicationGroupInput{
+		AutomaticFailoverEnabled: aws.Bool(enable),
+		MultiAZEnabled:           aws.Bool(enable),
+		ApplyImmediately:         aws.Bool(true),
+		ReplicationGroupId:       aws.String(replicationGroupID),
+	})
 	if err != nil {
 		return err
 	}

@@ -95,6 +95,7 @@ type Provider interface {
 	DeleteCacheParameterGroup(ctx context.Context, instanceID string) error
 	FindSnapshots(ctx context.Context, instanceID string) ([]SnapshotInfo, error)
 	ForceFailover(ctx context.Context, instanceID string) error
+	AutoFailover(ctx context.Context, instanceID string, enable bool) error
 }
 
 // Credentials are the connection parameters for Redis clients
