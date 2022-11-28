@@ -32,7 +32,7 @@
 	},
 	"plan_configs": {
 		"94767b71-2b9c-4960-a4f8-77b81a96f7e0": {
-			"instance_type": "cache.t2.micro",
+			"instance_type": "cache.t3.micro",
 			"replicas_per_node_group": 1,
 			"shard_count": 1,
 			"snapshot_retention_limit": 1,
@@ -41,7 +41,7 @@
 			"parameters": {
 				"cluster-enabled": "yes",
 				"maxmemory-policy": "volatile-lru",
-				"reserved-memory": "0"
+				"reserved-memory-percent": "0"
 			},
 			"engine": "redis",
 			"engine_version": "6.2",
