@@ -535,6 +535,14 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 			instanceParameters.DailyBackupWindow = *replicationGroup.SnapshotWindow
 		}
 
+		if replicationGroup.AutomaticFailover != nil {
+			if *replicationGroup.AutomaticFailover == "enabled" {
+				instanceParameters.AutoFailover = true
+			} else {
+				instanceParameters.AutoFailover = false
+			}
+		}
+
 		for _, nodeGroup := range replicationGroup.NodeGroups {
 			for _, nodeGroupMember := range nodeGroup.NodeGroupMembers {
 				if nodeGroupMember.CurrentRole != nil {

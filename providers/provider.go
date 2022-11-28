@@ -69,6 +69,7 @@ type InstanceParameters struct {
 	CacheParameters            []CacheParameter `json:"cache_parameters"`
 	ActiveNodes                []string         `json:"active_nodes"`
 	PassiveNodes               []string         `json:"passive_nodes"`
+	AutoFailover               bool             `json:"auto_failover"`
 }
 
 type InstanceDetails struct {

@@ -1210,6 +1210,8 @@ var _ = Describe("Provider", func() {
 						MemberClusters: []*string{aws.String("some-cluster-id")},
 						SnapshotWindow: aws.String("some-snapshot-window"),
 
+						AutomaticFailover: aws.String("enabled"),
+
 						NodeGroups: []*elasticache.NodeGroup{
 							{
 								NodeGroupMembers: []*elasticache.NodeGroupMember{
@@ -1263,6 +1265,7 @@ var _ = Describe("Provider", func() {
 				MaxMemoryPolicy:            "some-maxmemory-policy",
 				ActiveNodes:                []string{"cf-qwkec4pxhft6q-001"},
 				PassiveNodes:               []string{"cf-qwkec4pxhft6q-002"},
+				AutoFailover:               true,
 				CacheParameters: []providers.CacheParameter{
 					{
 						ParameterName:  "some-parameter-name",
@@ -1294,6 +1297,7 @@ var _ = Describe("Provider", func() {
 				MaxMemoryPolicy:            "some-maxmemory-policy",
 				ActiveNodes:                []string{"cf-qwkec4pxhft6q-001"},
 				PassiveNodes:               []string{"cf-qwkec4pxhft6q-002"},
+				AutoFailover:               true,
 				CacheParameters: []providers.CacheParameter{
 					{
 						ParameterName:  "some-parameter-name",

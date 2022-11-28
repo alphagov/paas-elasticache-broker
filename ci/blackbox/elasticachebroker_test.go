@@ -199,6 +199,20 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(newServiceParams.PreferredMaintenanceWindow).To(Equal("tue:17:51-tue:19:45"))
 			})
 
+			By("disabling Automatic Failover", func() {
+				updateParams := `{"auto_failover": false}`
+				oldPlanID := planID
+				oldServiceID := serviceID
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(instanceID, serviceID, planID, operation, "succeeded")
+				Expect(state).To(Equal("succeeded"))
+				newServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(newServiceParams.AutoFailover).To(Equal(false))
+			})
+
 			By("binding a resource to the service", func() {
 				code, bindingResponse, err := brokerAPIClient.Bind(instanceID, serviceID, planID, appID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
