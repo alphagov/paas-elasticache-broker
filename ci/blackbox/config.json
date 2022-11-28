@@ -33,19 +33,19 @@
 	"plan_configs": {
 		"94767b71-2b9c-4960-a4f8-77b81a96f7e0": {
 			"instance_type": "cache.t2.micro",
-			"replicas_per_node_group": 0,
+			"replicas_per_node_group": 1,
 			"shard_count": 1,
 			"snapshot_retention_limit": 1,
 			"automatic_failover_enabled": true,
-			"multi_az_enabled": false,
+			"multi_az_enabled": true,
 			"parameters": {
 				"cluster-enabled": "yes",
 				"maxmemory-policy": "volatile-lru",
 				"reserved-memory": "0"
 			},
 			"engine": "redis",
-			"engine_version": "3.2.6",
-			"cache_parameter_group_family": "redis3.2"
+			"engine_version": "6.2",
+			"cache_parameter_group_family": "redis6.x"
 		}
 	}
 }

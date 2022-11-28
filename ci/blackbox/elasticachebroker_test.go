@@ -213,6 +213,40 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(newServiceParams.AutoFailover).To(Equal(false))
 			})
 
+			By("triggering a failover", func() {
+
+				oldServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+
+				updateParams := `{"test_failover": true}`
+				oldPlanID := planID
+				oldServiceID := serviceID
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(instanceID, serviceID, planID, operation, "succeeded")
+
+				Expect(state).To(Equal("succeeded"))
+				newServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(newServiceParams.ActiveNodes[0]).To(Equal(oldServiceParams.PassiveNodes[0]))
+				Expect(newServiceParams.PassiveNodes[0]).To(Equal(oldServiceParams.ActiveNodes[0]))
+			})
+
+			By("enabling Automatic Failover", func() {
+				updateParams := `{"auto_failover": true}`
+				oldPlanID := planID
+				oldServiceID := serviceID
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(instanceID, serviceID, planID, operation, "succeeded")
+				Expect(state).To(Equal("succeeded"))
+				newServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(newServiceParams.AutoFailover).To(Equal(true))
+			})
+
 			By("binding a resource to the service", func() {
 				code, bindingResponse, err := brokerAPIClient.Bind(instanceID, serviceID, planID, appID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
