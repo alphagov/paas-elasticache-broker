@@ -537,11 +537,12 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 
 		for _, nodeGroup := range replicationGroup.NodeGroups {
 			for _, nodeGroupMember := range nodeGroup.NodeGroupMembers {
-				if *nodeGroupMember.CurrentRole == "primary" {
-					instanceParameters.ActiveNodes = append(instanceParameters.ActiveNodes, *nodeGroupMember.CacheClusterId)
-				}
-				if *nodeGroupMember.CurrentRole == "replica" {
-					instanceParameters.PassiveNodes = append(instanceParameters.PassiveNodes, *nodeGroupMember.CacheClusterId)
+				if nodeGroupMember.CurrentRole != nil {
+					if *nodeGroupMember.CurrentRole == "primary" {
+						instanceParameters.ActiveNodes = append(instanceParameters.ActiveNodes, *nodeGroupMember.CacheClusterId)
+					} else if *nodeGroupMember.CurrentRole == "replica" {
+						instanceParameters.PassiveNodes = append(instanceParameters.PassiveNodes, *nodeGroupMember.CacheClusterId)
+					}
 				}
 			}
 		}
