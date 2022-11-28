@@ -566,7 +566,7 @@ func (p *RedisProvider) GetInstanceParameters(ctx context.Context, instanceID st
 	return instanceParameters, nil
 }
 
-func (p *RedisProvider) ForceFailover(ctx context.Context, instanceID string) error {
+func (p *RedisProvider) TestFailover(ctx context.Context, instanceID string) error {
 	replicationGroupID := GenerateReplicationGroupName(instanceID)
 	replicationGroup, err := p.describeReplicationGroup(ctx, replicationGroupID)
 	if err != nil {

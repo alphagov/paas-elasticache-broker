@@ -491,6 +491,45 @@ var _ = Describe("Broker", func() {
 			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(BeZero())
 		})
 
+		It("triggers a redis test failover through the Provider", func() {
+			validUpdateDetails.RawParameters = []byte(`{"test_failover": true}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.TestFailoverCallCount()).To(Equal(1))
+			_, id := fakeProvider.TestFailoverArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       true,
+				OperationData: broker.Operation{Action: broker.ActionUpdating}.String(),
+			}))
+
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(BeZero())
+		})
+
+		It("updates the autofailover settings through the Provider", func() {
+			validUpdateDetails.RawParameters = []byte(`{"auto_failover": false}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.AutoFailoverCallCount()).To(Equal(1))
+			_, id, enable := fakeProvider.AutoFailoverArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+			Expect(enable).To(Equal(false))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       true,
+				OperationData: broker.Operation{Action: broker.ActionUpdating}.String(),
+			}))
+
+			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(BeZero())
+		})
+
 		It("updates both the redis replication group and the redis parameter group through the Provider", func() {
 			validUpdateDetails.RawParameters = []byte(`{"maxmemory_policy": "noeviction", "preferred_maintenance_window": "mon:23:00-tue:01:30"}`)
 

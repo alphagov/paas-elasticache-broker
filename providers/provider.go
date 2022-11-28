@@ -94,7 +94,7 @@ type Provider interface {
 	RevokeCredentials(ctx context.Context, instanceID, bindingID string) error
 	DeleteCacheParameterGroup(ctx context.Context, instanceID string) error
 	FindSnapshots(ctx context.Context, instanceID string) ([]SnapshotInfo, error)
-	ForceFailover(ctx context.Context, instanceID string) error
+	TestFailover(ctx context.Context, instanceID string) error
 	AutoFailover(ctx context.Context, instanceID string, enable bool) error
 }
 

@@ -232,7 +232,7 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 		}
 	}
 
-	if userParameters.MaxMemoryPolicy == nil && userParameters.PreferredMaintenanceWindow == "" && userParameters.ForceFailover == nil && userParameters.AutoFailover == nil {
+	if userParameters.MaxMemoryPolicy == nil && userParameters.PreferredMaintenanceWindow == "" && userParameters.TestFailover == nil && userParameters.AutoFailover == nil {
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("no parameters provided")
 	}
 
@@ -250,8 +250,8 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 		})
 	}
 
-	if userParameters.ForceFailover != nil {
-		err := b.provider.ForceFailover(providerCtx, instanceID)
+	if userParameters.TestFailover != nil {
+		err := b.provider.TestFailover(providerCtx, instanceID)
 		if err != nil {
 			return brokerapi.UpdateServiceSpec{}, errors.Wrap(err, "Forcing failover failed")
 		}

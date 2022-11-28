@@ -9,6 +9,19 @@ import (
 )
 
 type FakeProvider struct {
+	AutoFailoverStub        func(context.Context, string, bool) error
+	autoFailoverMutex       sync.RWMutex
+	autoFailoverArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 bool
+	}
+	autoFailoverReturns struct {
+		result1 error
+	}
+	autoFailoverReturnsOnCall map[int]struct {
+		result1 error
+	}
 	DeleteCacheParameterGroupStub        func(context.Context, string) error
 	deleteCacheParameterGroupMutex       sync.RWMutex
 	deleteCacheParameterGroupArgsForCall []struct {
@@ -133,6 +146,18 @@ type FakeProvider struct {
 	revokeCredentialsReturnsOnCall map[int]struct {
 		result1 error
 	}
+	TestFailoverStub        func(context.Context, string) error
+	testFailoverMutex       sync.RWMutex
+	testFailoverArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	testFailoverReturns struct {
+		result1 error
+	}
+	testFailoverReturnsOnCall map[int]struct {
+		result1 error
+	}
 	UpdateParamGroupParametersStub        func(context.Context, string, providers.UpdateParamGroupParameters) error
 	updateParamGroupParametersMutex       sync.RWMutex
 	updateParamGroupParametersArgsForCall []struct {
@@ -161,6 +186,69 @@ type FakeProvider struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeProvider) AutoFailover(arg1 context.Context, arg2 string, arg3 bool) error {
+	fake.autoFailoverMutex.Lock()
+	ret, specificReturn := fake.autoFailoverReturnsOnCall[len(fake.autoFailoverArgsForCall)]
+	fake.autoFailoverArgsForCall = append(fake.autoFailoverArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 bool
+	}{arg1, arg2, arg3})
+	stub := fake.AutoFailoverStub
+	fakeReturns := fake.autoFailoverReturns
+	fake.recordInvocation("AutoFailover", []interface{}{arg1, arg2, arg3})
+	fake.autoFailoverMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeProvider) AutoFailoverCallCount() int {
+	fake.autoFailoverMutex.RLock()
+	defer fake.autoFailoverMutex.RUnlock()
+	return len(fake.autoFailoverArgsForCall)
+}
+
+func (fake *FakeProvider) AutoFailoverCalls(stub func(context.Context, string, bool) error) {
+	fake.autoFailoverMutex.Lock()
+	defer fake.autoFailoverMutex.Unlock()
+	fake.AutoFailoverStub = stub
+}
+
+func (fake *FakeProvider) AutoFailoverArgsForCall(i int) (context.Context, string, bool) {
+	fake.autoFailoverMutex.RLock()
+	defer fake.autoFailoverMutex.RUnlock()
+	argsForCall := fake.autoFailoverArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeProvider) AutoFailoverReturns(result1 error) {
+	fake.autoFailoverMutex.Lock()
+	defer fake.autoFailoverMutex.Unlock()
+	fake.AutoFailoverStub = nil
+	fake.autoFailoverReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) AutoFailoverReturnsOnCall(i int, result1 error) {
+	fake.autoFailoverMutex.Lock()
+	defer fake.autoFailoverMutex.Unlock()
+	fake.AutoFailoverStub = nil
+	if fake.autoFailoverReturnsOnCall == nil {
+		fake.autoFailoverReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.autoFailoverReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeProvider) DeleteCacheParameterGroup(arg1 context.Context, arg2 string) error {
@@ -743,6 +831,68 @@ func (fake *FakeProvider) RevokeCredentialsReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
+func (fake *FakeProvider) TestFailover(arg1 context.Context, arg2 string) error {
+	fake.testFailoverMutex.Lock()
+	ret, specificReturn := fake.testFailoverReturnsOnCall[len(fake.testFailoverArgsForCall)]
+	fake.testFailoverArgsForCall = append(fake.testFailoverArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.TestFailoverStub
+	fakeReturns := fake.testFailoverReturns
+	fake.recordInvocation("TestFailover", []interface{}{arg1, arg2})
+	fake.testFailoverMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeProvider) TestFailoverCallCount() int {
+	fake.testFailoverMutex.RLock()
+	defer fake.testFailoverMutex.RUnlock()
+	return len(fake.testFailoverArgsForCall)
+}
+
+func (fake *FakeProvider) TestFailoverCalls(stub func(context.Context, string) error) {
+	fake.testFailoverMutex.Lock()
+	defer fake.testFailoverMutex.Unlock()
+	fake.TestFailoverStub = stub
+}
+
+func (fake *FakeProvider) TestFailoverArgsForCall(i int) (context.Context, string) {
+	fake.testFailoverMutex.RLock()
+	defer fake.testFailoverMutex.RUnlock()
+	argsForCall := fake.testFailoverArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeProvider) TestFailoverReturns(result1 error) {
+	fake.testFailoverMutex.Lock()
+	defer fake.testFailoverMutex.Unlock()
+	fake.TestFailoverStub = nil
+	fake.testFailoverReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeProvider) TestFailoverReturnsOnCall(i int, result1 error) {
+	fake.testFailoverMutex.Lock()
+	defer fake.testFailoverMutex.Unlock()
+	fake.TestFailoverStub = nil
+	if fake.testFailoverReturnsOnCall == nil {
+		fake.testFailoverReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.testFailoverReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeProvider) UpdateParamGroupParameters(arg1 context.Context, arg2 string, arg3 providers.UpdateParamGroupParameters) error {
 	fake.updateParamGroupParametersMutex.Lock()
 	ret, specificReturn := fake.updateParamGroupParametersReturnsOnCall[len(fake.updateParamGroupParametersArgsForCall)]
@@ -872,6 +1022,8 @@ func (fake *FakeProvider) UpdateReplicationGroupReturnsOnCall(i int, result1 err
 func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
+	fake.autoFailoverMutex.RLock()
+	defer fake.autoFailoverMutex.RUnlock()
 	fake.deleteCacheParameterGroupMutex.RLock()
 	defer fake.deleteCacheParameterGroupMutex.RUnlock()
 	fake.deprovisionMutex.RLock()
@@ -890,6 +1042,8 @@ func (fake *FakeProvider) Invocations() map[string][][]interface{} {
 	defer fake.provisionMutex.RUnlock()
 	fake.revokeCredentialsMutex.RLock()
 	defer fake.revokeCredentialsMutex.RUnlock()
+	fake.testFailoverMutex.RLock()
+	defer fake.testFailoverMutex.RUnlock()
 	fake.updateParamGroupParametersMutex.RLock()
 	defer fake.updateParamGroupParametersMutex.RUnlock()
 	fake.updateReplicationGroupMutex.RLock()
