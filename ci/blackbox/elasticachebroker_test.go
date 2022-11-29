@@ -364,6 +364,7 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 					describeSnapshotsOutput, err := elasticacheService.DescribeSnapshots(&elasticache.DescribeSnapshotsInput{
 						ReplicationGroupId: aws.String(replicationGroupID),
 						SnapshotName:       aws.String(snapshotName),
+						CacheClusterId:     cacheClusterId,
 					})
 					Expect(err).ToNot(HaveOccurred())
 					Expect(describeSnapshotsOutput.Snapshots).To(HaveLen(1))
