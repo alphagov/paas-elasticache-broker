@@ -39,7 +39,7 @@
 			"automatic_failover_enabled": true,
 			"multi_az_enabled": true,
 			"parameters": {
-				"cluster-enabled": "yes",
+				"cluster-enabled": "no",
 				"maxmemory-policy": "volatile-lru",
 				"reserved-memory-percent": "0"
 			},
