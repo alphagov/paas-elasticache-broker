@@ -345,9 +345,16 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
+				replicationGroups, err := elasticacheService.DescribeReplicationGroups(&elasticache.DescribeReplicationGroupsInput{
+					ReplicationGroupId: aws.String(replicationGroupID),
+				})
+				Expect(err).ToNot(HaveOccurred())
+				cacheClusterId := replicationGroups.ReplicationGroups[0].MemberClusters[0]
+
 				_, err = elasticacheService.CreateSnapshot(&elasticache.CreateSnapshotInput{
 					ReplicationGroupId: aws.String(replicationGroupID),
 					SnapshotName:       aws.String(snapshotName),
+					CacheClusterId:     cacheClusterId,
 				})
 				Expect(err).ToNot(HaveOccurred())
 
