@@ -156,7 +156,7 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 						found++
 						Expect(*p.ParameterValue).To(Equal("volatile-lru"))
 					}
-					if *p.ParameterName == "reserved-memory" {
+					if *p.ParameterName == "reserved-memory-percent" {
 						found++
 						Expect(*p.ParameterValue).To(Equal("0"))
 					}
