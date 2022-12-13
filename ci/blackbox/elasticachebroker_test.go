@@ -156,7 +156,7 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 						found++
 						Expect(*p.ParameterValue).To(Equal("volatile-lru"))
 					}
-					if *p.ParameterName == "reserved-memory" {
+					if *p.ParameterName == "reserved-memory-percent" {
 						found++
 						Expect(*p.ParameterValue).To(Equal("0"))
 					}
@@ -197,6 +197,27 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				newServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(newServiceParams.PreferredMaintenanceWindow).To(Equal("tue:17:51-tue:19:45"))
+			})
+
+			By("triggering a failover", func() {
+
+				oldServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+
+				updateParams := `{"test_failover": true}`
+				oldPlanID := planID
+				oldServiceID := serviceID
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, oldPlanID, oldServiceID, brokerAPIClient.DefaultOrganizationID, brokerAPIClient.DefaultSpaceID, updateParams)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(instanceID, serviceID, planID, operation, "succeeded")
+
+				Expect(state).To(Equal("succeeded"))
+				newServiceParams, err := brokerAPIClient.GetServiceParams(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(newServiceParams.ActiveNodes[0]).To(Equal(oldServiceParams.PassiveNodes[0]))
+				Expect(newServiceParams.PassiveNodes[0]).To(Equal(oldServiceParams.ActiveNodes[0]))
+				Expect(newServiceParams.AutoFailover).To(Equal(true))
 			})
 
 			By("binding a resource to the service", func() {
@@ -297,9 +318,16 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				replicationGroupID := redis.GenerateReplicationGroupName(instanceID)
+				replicationGroups, err := elasticacheService.DescribeReplicationGroups(&elasticache.DescribeReplicationGroupsInput{
+					ReplicationGroupId: aws.String(replicationGroupID),
+				})
+				Expect(err).ToNot(HaveOccurred())
+				cacheClusterId := replicationGroups.ReplicationGroups[0].MemberClusters[0]
+
 				_, err = elasticacheService.CreateSnapshot(&elasticache.CreateSnapshotInput{
 					ReplicationGroupId: aws.String(replicationGroupID),
 					SnapshotName:       aws.String(snapshotName),
+					CacheClusterId:     cacheClusterId,
 				})
 				Expect(err).ToNot(HaveOccurred())
 
@@ -307,8 +335,8 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Eventually(func() string {
 					fmt.Fprint(GinkgoWriter, ".")
 					describeSnapshotsOutput, err := elasticacheService.DescribeSnapshots(&elasticache.DescribeSnapshotsInput{
-						ReplicationGroupId: aws.String(replicationGroupID),
-						SnapshotName:       aws.String(snapshotName),
+						SnapshotName:   aws.String(snapshotName),
+						CacheClusterId: cacheClusterId,
 					})
 					Expect(err).ToNot(HaveOccurred())
 					Expect(describeSnapshotsOutput.Snapshots).To(HaveLen(1))
@@ -333,6 +361,15 @@ var _ = Describe("ElastiCache Broker Daemon", func() {
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(restoredInstanceID, serviceID, planID, operation, "gone")
 				Expect(state).To(Equal("gone"))
+			})
+
+			// this is here to ensure the restored instance is removed first
+			defer By("removing the previously prepared snapshot", func() {
+				describeSnapshotsOutput, err := elasticacheService.DeleteSnapshot(&elasticache.DeleteSnapshotInput{
+					SnapshotName: aws.String(snapshotName),
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(describeSnapshotsOutput.Snapshot.SnapshotStatus).To(Equal(aws.String("deleting")))
 			})
 
 			By("checking that the restored replication group has the right tags", func() {

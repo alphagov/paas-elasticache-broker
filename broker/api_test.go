@@ -216,7 +216,7 @@ var _ = Describe("Broker", func() {
 	Describe("LastOperation", func() {
 		It("responds with 200 when the instance is available", func() {
 			instanceID := uuid.NewV4().String()
-			fakeProvider.GetStateReturns(providers.Available, "", nil)
+			fakeProvider.ProgressStateReturns(providers.Available, "", nil)
 			resp := DoRequest(brokerAPI, NewRequest(
 				"GET",
 				"/v2/service_instances/"+instanceID+"/last_operation",
@@ -231,7 +231,7 @@ var _ = Describe("Broker", func() {
 
 		It("responds with a 500 when the state can't be retrieved", func() {
 			instanceID := uuid.NewV4().String()
-			fakeProvider.GetStateReturns("", "", errors.New("ohai"))
+			fakeProvider.ProgressStateReturns("", "", errors.New("ohai"))
 
 			resp := DoRequest(brokerAPI, NewRequest(
 				"GET",
@@ -247,7 +247,7 @@ var _ = Describe("Broker", func() {
 
 		It("responds with 410 when the instance doesn't exist", func() {
 			instanceID := uuid.NewV4().String()
-			fakeProvider.GetStateReturns(providers.NonExisting, "", nil)
+			fakeProvider.ProgressStateReturns(providers.NonExisting, "", nil)
 			resp := DoRequest(brokerAPI, NewRequest(
 				"GET",
 				"/v2/service_instances/"+instanceID+"/last_operation",

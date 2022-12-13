@@ -21,10 +21,14 @@ type Broker struct {
 	logger   lager.Logger
 }
 
+type action = string
+
 // Operation is the operation data passed back by the provision/deprovision/update calls and received by the last
 // operation call
 type Operation struct {
-	Action string `json:"action"`
+	Action      action `json:"action"`
+	PrimaryNode string `json:"primaryNode"`
+	TimeOut     string `json:"timeOut"`
 }
 
 func (o Operation) String() string {
@@ -43,9 +47,11 @@ func New(config Config, provider providers.Provider, logger lager.Logger) *Broke
 
 // Possible actions in the operation data
 const (
-	ActionProvisioning   = "provisioning"
-	ActionDeprovisioning = "deprovisioning"
-	ActionUpdating       = "updating"
+	ActionProvisioning   action = "provisioning"
+	ActionDeprovisioning action = "deprovisioning"
+	ActionUpdating       action = "updating"
+	ActionFailover       action = "failover"
+	FailoverTimeout             = 45 * time.Minute
 )
 
 // Sort providers.SnapshotInfo
@@ -232,8 +238,40 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 		}
 	}
 
-	if userParameters.MaxMemoryPolicy == nil && userParameters.PreferredMaintenanceWindow == "" {
+	if checkIfNoUpdateParametersAreSet(userParameters) {
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("no parameters provided")
+	}
+
+	if userParameters.TestFailover != nil {
+
+		planConfig, err := b.config.GetPlanConfig(details.PlanID)
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, errors.Wrap(err, "Failed to find service plan")
+		}
+		if planConfig.Parameters["cluster-enabled"] == "yes" {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Test failover is not supported for Redis instances in cluster mode")
+		}
+		if planConfig.MultiAZEnabled == false || planConfig.AutomaticFailoverEnabled == false {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Test failover is not supported without MultiAZEnabled and AutomaticFailoverEnabled")
+		}
+		if planConfig.ReplicasPerNodeGroup < 1 {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Test failover requires one or more replicas")
+		}
+		if userParameters.MaxMemoryPolicy != nil || userParameters.PreferredMaintenanceWindow != "" {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Test failover must be used by itself")
+		}
+		primaryNode, err := b.provider.StartFailoverTest(providerCtx, instanceID)
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, errors.Wrap(err, "Test failover failed: ")
+		}
+		return brokerapi.UpdateServiceSpec{
+			IsAsync: true,
+			OperationData: Operation{
+				Action:      ActionFailover,
+				PrimaryNode: primaryNode,
+				TimeOut:     time.Now().Add(FailoverTimeout).Format(time.RFC3339),
+			}.String(),
+		}, nil
 	}
 
 	if userParameters.PreferredMaintenanceWindow != "" {
@@ -341,6 +379,7 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID string, pollDetai
 		"operation-data": pollDetails.OperationData,
 	})
 
+	// provider call to get operation?
 	var operation Operation
 	if pollDetails.OperationData != "" {
 		err := json.Unmarshal([]byte(pollDetails.OperationData), &operation)
@@ -352,10 +391,21 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID string, pollDetai
 		}
 	}
 
+	if operation.TimeOut != "" {
+		timeOutParsed, err := time.Parse(time.RFC3339, operation.TimeOut)
+		if err != nil {
+			return brokerapi.LastOperation{}, errors.Wrap(err, "Failed to parse time out string")
+		}
+
+		if time.Now().After(timeOutParsed) {
+			return brokerapi.LastOperation{}, fmt.Errorf("Operation %s timed out for %s", operation.Action, instanceID)
+		}
+	}
+
 	providerCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFunc()
 
-	state, stateDescription, err := b.provider.GetState(providerCtx, instanceID)
+	state, stateDescription, err := b.provider.ProgressState(providerCtx, instanceID, operation.Action, operation.PrimaryNode)
 	if err != nil {
 		return brokerapi.LastOperation{}, fmt.Errorf("error getting state for %s: %s", instanceID, err)
 	}

@@ -8,6 +8,7 @@ import (
 const ParamRestoreLatestSnapshotOf = "restore_from_latest_snapshot_of"
 const ParamMaxMemoryPolicy = "maxmemory_policy"
 const ParamPreferredMaintenanceWindow = "preferred_maintenance_window"
+const TestFailover = "test_failover"
 
 func parseProvisionParameters(data []byte) (*ProvisionParameters, error) {
 	params := &ProvisionParameters{}
@@ -22,11 +23,18 @@ func parseProvisionParameters(data []byte) (*ProvisionParameters, error) {
 	return params, nil
 }
 
+func checkIfNoUpdateParametersAreSet(params *UpdateParameters) bool {
+	return params.MaxMemoryPolicy == nil &&
+		params.PreferredMaintenanceWindow == "" &&
+		params.TestFailover == nil
+}
+
 func parseUpdateParameters(data []byte) (*UpdateParameters, error) {
 	params := &UpdateParameters{}
 	err := unmarshalParameters(data, params, []string{
 		ParamMaxMemoryPolicy,
 		ParamPreferredMaintenanceWindow,
+		TestFailover,
 	})
 	if err != nil {
 		return nil, err
@@ -64,4 +72,5 @@ type ProvisionParameters struct {
 type UpdateParameters struct {
 	MaxMemoryPolicy            *string `json:"maxmemory_policy"`
 	PreferredMaintenanceWindow string  `json:"preferred_maintenance_window"`
+	TestFailover               *bool   `json:"test_failover"`
 }

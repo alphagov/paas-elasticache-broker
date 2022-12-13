@@ -41,14 +41,62 @@ var _ = Describe("Broker", func() {
 			},
 			PlanConfigs: map[string]broker.PlanConfig{
 				"plan1": {
-					InstanceType: "t2.micro",
-					ShardCount:   1,
+					InstanceType:         "t2.micro",
+					ShardCount:           1,
+					ReplicasPerNodeGroup: 1,
 					Parameters: map[string]string{
 						"maxmemory-policy":             "volatile-lru",
 						"reserved-memory":              "0",
 						"preferred-maintenance-window": "sun:23:00-mon:01:30",
 					},
 					AutomaticFailoverEnabled:  true,
+					MultiAZEnabled:            true,
+					Engine:                    "redis",
+					EngineVersion:             "4.0.10",
+					CacheParameterGroupFamily: "default.redis4.0",
+				},
+				"plan2": {
+					InstanceType:         "t2.micro",
+					ShardCount:           1,
+					ReplicasPerNodeGroup: 0,
+					Parameters: map[string]string{
+						"maxmemory-policy":             "volatile-lru",
+						"reserved-memory":              "0",
+						"preferred-maintenance-window": "sun:23:00-mon:01:30",
+					},
+					AutomaticFailoverEnabled:  true,
+					MultiAZEnabled:            true,
+					Engine:                    "redis",
+					EngineVersion:             "4.0.10",
+					CacheParameterGroupFamily: "default.redis4.0",
+				},
+				"plan3": {
+					InstanceType:         "t2.micro",
+					ShardCount:           1,
+					ReplicasPerNodeGroup: 1,
+					Parameters: map[string]string{
+						"maxmemory-policy":             "volatile-lru",
+						"reserved-memory":              "0",
+						"preferred-maintenance-window": "sun:23:00-mon:01:30",
+						"cluster-enabled":              "yes",
+					},
+					AutomaticFailoverEnabled:  true,
+					MultiAZEnabled:            true,
+					Engine:                    "redis",
+					EngineVersion:             "4.0.10",
+					CacheParameterGroupFamily: "default.redis4.0",
+				},
+				"plan4": {
+					InstanceType:         "t2.micro",
+					ShardCount:           1,
+					ReplicasPerNodeGroup: 1,
+					Parameters: map[string]string{
+						"maxmemory-policy":             "volatile-lru",
+						"reserved-memory":              "0",
+						"preferred-maintenance-window": "sun:23:00-mon:01:30",
+						"cluster-enabled":              "yes",
+					},
+					AutomaticFailoverEnabled:  false,
 					MultiAZEnabled:            true,
 					Engine:                    "redis",
 					EngineVersion:             "4.0.10",
@@ -133,7 +181,7 @@ var _ = Describe("Broker", func() {
 				SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 				CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
 				PreferredMaintenanceWindow: "",
-				ReplicasPerNodeGroup:       0,
+				ReplicasPerNodeGroup:       1,
 				ShardCount:                 1,
 				SnapshotRetentionLimit:     0,
 				AutomaticFailoverEnabled:   validConfig.PlanConfigs["plan1"].AutomaticFailoverEnabled,
@@ -342,7 +390,7 @@ var _ = Describe("Broker", func() {
 					SecurityGroupIds:           validConfig.VpcSecurityGroupIds,
 					CacheSubnetGroupName:       validConfig.CacheSubnetGroupName,
 					PreferredMaintenanceWindow: "",
-					ReplicasPerNodeGroup:       0,
+					ReplicasPerNodeGroup:       1,
 					ShardCount:                 1,
 					SnapshotRetentionLimit:     0,
 					RestoreFromSnapshot:        &expectedRestoreFromSnapshotName,
@@ -489,6 +537,158 @@ var _ = Describe("Broker", func() {
 			}))
 
 			Expect(fakeProvider.UpdateParamGroupParametersCallCount()).To(BeZero())
+		})
+
+		It("triggers a redis test failover through the Provider", func() {
+
+			validUpdateDetails.RawParameters = []byte(`{"test_failover": true}`)
+
+			fakeProvider.StartFailoverTestReturns("primarynode", nil)
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeProvider.StartFailoverTestCallCount()).To(Equal(1))
+			_, id := fakeProvider.StartFailoverTestArgsForCall(0)
+
+			Expect(id).To(Equal("instanceid"))
+
+			Expect(spec.IsAsync).To(Equal(true))
+
+			operation := broker.Operation{}
+			err = json.Unmarshal([]byte(spec.OperationData), &operation)
+			Expect(err).ToNot(HaveOccurred())
+
+			parsedTime, err := time.Parse(time.RFC3339, operation.TimeOut)
+			Expect(operation.Action).To(Equal(broker.ActionFailover))
+			Expect(operation.PrimaryNode).To(Equal("primarynode"))
+			Expect(parsedTime).To(BeTemporally(">", time.Now().Add(44*time.Minute)))
+		})
+
+		It("fails a test_failover with multiple raw parameters used", func() {
+
+			validUpdateDetails.RawParameters = []byte(`{"test_failover": true, "preferred_maintenance_window": "mon:23:00-tue:01:30"}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(Equal("Test failover must be used by itself"))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       false,
+				DashboardURL:  "",
+				OperationData: "",
+			}))
+		})
+
+		It("fails a test_failover for a cluster_mode enabled plan", func() {
+
+			validUpdateDetails = brokerapi.UpdateDetails{
+				ServiceID: "service1",
+				PlanID:    "noplan",
+				PreviousValues: brokerapi.PreviousValues{
+					ServiceID: "service1",
+					PlanID:    "noplan",
+					OrgID:     "org1",
+					SpaceID:   "space1",
+				},
+			}
+
+			validUpdateDetails.RawParameters = []byte(`{"test_failover": true}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(HaveOccurred())
+
+			Expect(err.Error()).To(Equal("Failed to find service plan: no plan found"))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       false,
+				DashboardURL:  "",
+				OperationData: "",
+			}))
+		})
+
+		It("fails a test_failover for a cluster_mode enabled plan", func() {
+
+			validUpdateDetails = brokerapi.UpdateDetails{
+				ServiceID: "service1",
+				PlanID:    "plan3",
+				PreviousValues: brokerapi.PreviousValues{
+					ServiceID: "service1",
+					PlanID:    "plan3",
+					OrgID:     "org1",
+					SpaceID:   "space1",
+				},
+			}
+
+			validUpdateDetails.RawParameters = []byte(`{"test_failover": true}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(HaveOccurred())
+
+			brokerErr := errors.New("Test failover is not supported for Redis instances in cluster mode")
+			Expect(err).To(MatchError(brokerErr))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       false,
+				DashboardURL:  "",
+				OperationData: "",
+			}))
+		})
+
+		It("fails a test_failover for a cluster without HA enabled", func() {
+
+			validUpdateDetails = brokerapi.UpdateDetails{
+				ServiceID: "service1",
+				PlanID:    "plan4",
+				PreviousValues: brokerapi.PreviousValues{
+					ServiceID: "service1",
+					PlanID:    "plan4",
+					OrgID:     "org1",
+					SpaceID:   "space1",
+				},
+			}
+
+			validUpdateDetails.RawParameters = []byte(`{"test_failover": true}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(HaveOccurred())
+
+			brokerErr := errors.New("Test failover is not supported for Redis instances in cluster mode")
+			Expect(err).To(MatchError(brokerErr))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       false,
+				DashboardURL:  "",
+				OperationData: "",
+			}))
+		})
+
+		It("fails a test_failover for a cluster without replicas", func() {
+
+			validUpdateDetails = brokerapi.UpdateDetails{
+				ServiceID: "service1",
+				PlanID:    "plan2",
+				PreviousValues: brokerapi.PreviousValues{
+					ServiceID: "service1",
+					PlanID:    "plan2",
+					OrgID:     "org1",
+					SpaceID:   "space1",
+				},
+			}
+
+			validUpdateDetails.RawParameters = []byte(`{"test_failover": true}`)
+
+			spec, err := b.Update(context.Background(), "instanceid", validUpdateDetails, true)
+			Expect(err).To(HaveOccurred())
+
+			brokerErr := errors.New("Test failover requires one or more replicas")
+			Expect(err).To(MatchError(brokerErr))
+
+			Expect(spec).To(Equal(brokerapi.UpdateServiceSpec{
+				IsAsync:       false,
+				DashboardURL:  "",
+				OperationData: "",
+			}))
 		})
 
 		It("updates both the redis replication group and the redis parameter group through the Provider", func() {
@@ -720,7 +920,7 @@ var _ = Describe("Broker", func() {
 	Describe("LastOperation", func() {
 		It("returns last operation data when the instance is available", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
+			fakeProvider.ProgressStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			Expect(b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})).
@@ -738,8 +938,8 @@ var _ = Describe("Broker", func() {
 			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 
 			Expect(err).NotTo(HaveOccurred())
-			Expect(fakeProvider.GetStateCallCount()).To(Equal(1))
-			receivedContext, _ := fakeProvider.GetStateArgsForCall(0)
+			Expect(fakeProvider.ProgressStateCallCount()).To(Equal(1))
+			receivedContext, _, _, _ := fakeProvider.ProgressStateArgsForCall(0)
 
 			_, hasDeadline := receivedContext.Deadline()
 
@@ -760,7 +960,7 @@ var _ = Describe("Broker", func() {
 		It("errors if getting the state fails", func() {
 			fakeProvider := &mocks.FakeProvider{}
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-			fakeProvider.GetStateReturns("", "", errors.New("foobar"))
+			fakeProvider.ProgressStateReturns("", "", errors.New("foobar"))
 
 			_, err := b.LastOperation(context.Background(), "myinstance", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 
@@ -769,7 +969,7 @@ var _ = Describe("Broker", func() {
 
 		It("accepts empty operation data temporarily", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
+			fakeProvider.ProgressStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: ""})
@@ -778,7 +978,7 @@ var _ = Describe("Broker", func() {
 
 		It("returns an error if last operation data is not json", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
+			fakeProvider.ProgressStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: "I am not JSON"})
@@ -787,7 +987,7 @@ var _ = Describe("Broker", func() {
 
 		It("returns an error if last operation data does not contain an action", func() {
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns(providers.Available, "i love brokers", nil)
+			fakeProvider.ProgressStateReturns(providers.Available, "i love brokers", nil)
 			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
 
 			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: "{}"})
@@ -798,7 +998,7 @@ var _ = Describe("Broker", func() {
 			It("returns ErrInstanceDoesNotExist when instance does not exist", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.ProgressStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 
 				_, err := b.LastOperation(context.Background(), "myinstance", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 				Expect(fakeProvider.DeleteCacheParameterGroupCallCount()).To(Equal(0))
@@ -810,7 +1010,7 @@ var _ = Describe("Broker", func() {
 			It("deletes the cache parameter group if the instance doesn't exist and returns ErrInstanceDoesNotExist", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.ProgressStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 				ctx := context.Background()
 				_, err := b.LastOperation(ctx, "myinstance", brokerapi.PollDetails{OperationData: `{"action": "deprovisioning"}`})
 
@@ -825,7 +1025,7 @@ var _ = Describe("Broker", func() {
 			It("returns an error if deleting the cache parameter group fails", func() {
 				fakeProvider := &mocks.FakeProvider{}
 				b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
-				fakeProvider.GetStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
+				fakeProvider.ProgressStateReturns(providers.NonExisting, "it'sgoneya'll", nil)
 				deleteError := errors.New("this is an error")
 				fakeProvider.DeleteCacheParameterGroupReturns(deleteError)
 				ctx := context.Background()
@@ -840,13 +1040,25 @@ var _ = Describe("Broker", func() {
 			log := gbytes.NewBuffer()
 			logger.RegisterSink(lager.NewWriterSink(log, lager.ERROR))
 			fakeProvider := &mocks.FakeProvider{}
-			fakeProvider.GetStateReturns("some-unknown-state", "", nil)
+			fakeProvider.ProgressStateReturns("some-unknown-state", "", nil)
 			b := broker.New(validConfig, fakeProvider, logger)
 
 			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "provisioning"}`})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(log).To(gbytes.Say("Unknown service state: some-unknown-state"))
+		})
+
+		It("will error if operation is timed out", func() {
+
+			fakeProvider := &mocks.FakeProvider{}
+			b := broker.New(validConfig, fakeProvider, lager.NewLogger("logger"))
+
+			_, err := b.LastOperation(context.Background(), "instanceid", brokerapi.PollDetails{OperationData: `{"action": "failover", "timeOut": "2022-12-09T00:00:00Z"}`})
+
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(fmt.Errorf("Operation failover timed out for instanceid")))
+
 		})
 
 	})
