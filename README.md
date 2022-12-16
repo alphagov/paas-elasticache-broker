@@ -31,6 +31,16 @@ AWS_VPC_ID=vpc-deadbeef AWS_SUBNET_CIDR_BLOCK=10.0.16.0/24 \
   go run main.go -config my-config.json
 ```
 
+## Patching an existing bosh environment
+
+If you want to patch an existing bosh environment you can run the following command:
+
+```
+make bosh_scp
+```
+
+This requires an existing bosh session to be established beforehand.
+
 ## Broker configuration
 
 You have to pass in a configuration JSON file with the following format:
