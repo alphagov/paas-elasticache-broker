@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -50,6 +51,11 @@ func newLogger(logLevel string) lager.Logger {
 }
 
 func newBroker(config broker.Config, logger lager.Logger) (*broker.Broker, error) {
+	if len(config.Catalog.Services) == 0 {
+		logger.Info("No service found in catalog, starting broker without provider")
+		return broker.New(config, nil, logger), nil
+	}
+
 	awsConfig := aws.NewConfig().WithRegion(config.Region)
 	awsSession := session.Must(session.NewSession(awsConfig))
 	elastiCache := elasticache.New(awsSession)
@@ -111,9 +117,19 @@ func main() {
 
 	server := newHTTPHandler(serviceBroker, logger, config)
 
-	listener, err := net.Listen("tcp", ":"+port)
+	listenAddress := fmt.Sprintf("%s:%s", config.Host, port)
+
+	listener, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		log.Fatalf("Error listening to port %s: %s", port, err)
+		log.Fatalf("failed to listen on address %s: %s", listenAddress, err)
+	}
+	if config.TLSEnabled() {
+		tlsConfig, err := config.TLS.GenerateTLSConfig()
+		if err != nil {
+			log.Fatalf("Error configuring TLS: %s", err)
+		}
+		listener = tls.NewListener(listener, tlsConfig)
+		logger.Info("start", lager.Data{"port": port, "tls": true, "host": config.Host, "address": listenAddress})
 	}
 	fmt.Println("ElastiCache Service Broker started on port " + port + "...")
 	http.Serve(listener, server)

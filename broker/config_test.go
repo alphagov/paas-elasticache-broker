@@ -93,6 +93,28 @@ var _ = Describe("Config", func() {
 			Expect(config.Validate()).NotTo(Succeed())
 		})
 
+		Describe("tls", func() {
+			It("fails with missing certificate info", func() {
+				config.TLS = &TLSConfig{}
+				config.TLS.Certificate = "invalid"
+				config.TLS.PrivateKey = "invalid"
+				config.TLS.CA = ""
+				err := config.Validate()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("TLS Validation failed: Config error: TLS CA required"))
+			})
+
+			It("fails with invalid certificate info", func() {
+				config.TLS = &TLSConfig{}
+				config.TLS.Certificate = "invalid"
+				config.TLS.PrivateKey = "invalid"
+				config.TLS.CA = "invalid"
+				err := config.Validate()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("TLS Validation failed: Invalid Certificate and key: tls: failed to find any PEM data in certificate input"))
+			})
+		})
+
 		Context("mapping PlanConfigs to Plans", func() {
 			It("errors if the plan config ID does not map to a plan ID in the catalog", func() {
 				config.PlanConfigs["this-is-not-in-the-catalog"] = PlanConfig{}

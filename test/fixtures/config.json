@@ -1,0 +1,19 @@
+{
+	"cluster_name_prefix": "cf-broker-test",
+	"cache_subnet_group_name": "test-subnet",
+	"vpc_security_group_ids": [
+		"test-security-group-id"
+	],
+	"region": "eu-west-1",
+	"log_level": "DEBUG",
+	"username": "username",
+	"password": "password",
+	"broker_name": "elasticache-unit-test",
+	"secrets_manager_path": "elasticache-broker-test",
+	"kms_key_id": "alias/elasticache-broker-test",
+	"catalog": {
+		"services": []
+	},
+	"plan_configs": {},
+	"host": "127.0.0.1"
+}

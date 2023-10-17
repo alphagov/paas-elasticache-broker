@@ -2,6 +2,8 @@ package helpers
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,21 +58,34 @@ type BrokerAPIClient struct {
 	DefaultOrganizationID string
 	DefaultSpaceID        string
 	AcceptsIncomplete     bool
+	CaPEM                 []byte
 }
 
-func NewBrokerAPIClient(url string, username string, password string, defaultOrganizationID string, defaultSpaceID string) *BrokerAPIClient {
+func NewBrokerAPIClient(url string, username string, password string, defaultOrganizationID string, defaultSpaceID string, caPEM []byte) *BrokerAPIClient {
 	return &BrokerAPIClient{
 		URL:                   url,
 		Username:              username,
 		Password:              password,
 		DefaultOrganizationID: defaultOrganizationID,
 		DefaultSpaceID:        defaultSpaceID,
+		CaPEM:                 caPEM,
 	}
 }
 
 func (b *BrokerAPIClient) doRequest(action string, path string, body io.Reader, params ...uriParam) (*http.Response, error) {
 
-	client := &http.Client{}
+	certPool := x509.NewCertPool()
+	certPool.AppendCertsFromPEM([]byte(b.CaPEM))
+
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs:    certPool,
+			ServerName: "example.com",
+		},
+	}
+	client := &http.Client{
+		Transport: transport,
+	}
 
 	req, err := http.NewRequest(action, b.URL+path, body)
 	if err != nil {
