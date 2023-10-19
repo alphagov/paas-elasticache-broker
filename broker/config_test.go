@@ -97,18 +97,16 @@ var _ = Describe("Config", func() {
 			It("fails with missing certificate info", func() {
 				config.TLS = &TLSConfig{}
 				config.TLS.Certificate = "invalid"
-				config.TLS.PrivateKey = "invalid"
-				config.TLS.CA = ""
+				config.TLS.PrivateKey = ""
 				err := config.Validate()
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("TLS Validation failed: Config error: TLS CA required"))
+				Expect(err.Error()).To(ContainSubstring("TLS Validation failed: Config error: TLS private key required"))
 			})
 
 			It("fails with invalid certificate info", func() {
 				config.TLS = &TLSConfig{}
 				config.TLS.Certificate = "invalid"
 				config.TLS.PrivateKey = "invalid"
-				config.TLS.CA = "invalid"
 				err := config.Validate()
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("TLS Validation failed: Invalid Certificate and key: tls: failed to find any PEM data in certificate input"))

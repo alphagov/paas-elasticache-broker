@@ -35,6 +35,6 @@ echo "TLS Certificates Generated in ${_tmp_dir}"
 echo "Example curl command: curl --cacert ${_tmp_dir}/CAcert.pem https://127.0.0.1:3000"
 
 jq \
-    '.tls.certificate = "'"${cert_value}"'" | .tls.private_key = "'"${key_value}"'" | .tls.ca = "'"${ca_cert_value}"'"' \
+    '.tls.certificate = "'"${cert_value}"'" | .tls.private_key = "'"${key_value}"'"' \
     "${SCRIPT_DIR}/../test/fixtures/config.json" > "${_tmp_dir}/config.json"
 go run main.go --config "${_tmp_dir}/config.json"

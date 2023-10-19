@@ -15,7 +15,7 @@ import (
 	"github.com/alphagov/paas-elasticache-broker/broker"
 )
 
-func SetTLSConfigOptions(configFile string, certficiate []byte, key []byte, ca []byte) (string, error) {
+func SetTLSConfigOptions(configFile string, certficiate []byte, key []byte) (string, error) {
 
 	data, err := os.ReadFile(configFile)
 	if err != nil {
@@ -31,7 +31,6 @@ func SetTLSConfigOptions(configFile string, certficiate []byte, key []byte, ca [
 	config.TLS = &broker.TLSConfig{}
 	config.TLS.Certificate = string(certficiate)
 	config.TLS.PrivateKey = string(key)
-	config.TLS.CA = string(ca)
 
 	data, err = json.Marshal(config)
 	if err != nil {

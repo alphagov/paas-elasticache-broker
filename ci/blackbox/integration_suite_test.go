@@ -49,7 +49,7 @@ func TestSuite(t *testing.T) {
 		certPEM, keyPEM, caPEM, err := test.GenerateTestCert()
 		Expect(err).NotTo(HaveOccurred())
 
-		configBase, err := test.SetTLSConfigOptions("./config.json", certPEM, keyPEM, caPEM)
+		configBase, err := test.SetTLSConfigOptions("./config.json", certPEM, keyPEM)
 		defer os.Remove(configBase)
 
 		originalConfig, err := broker.LoadConfig(configBase)

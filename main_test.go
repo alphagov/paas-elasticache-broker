@@ -65,7 +65,7 @@ var _ = Describe("broker command", Ordered, func() {
 			certPEM, keyPEM, caPEM, err := test.GenerateTestCert()
 			Expect(err).NotTo(HaveOccurred())
 
-			filename, err := test.SetTLSConfigOptions("./test/fixtures/config.json", certPEM, keyPEM, caPEM)
+			filename, err := test.SetTLSConfigOptions("./test/fixtures/config.json", certPEM, keyPEM)
 			Expect(err).NotTo(HaveOccurred())
 			defer os.Remove(filename)
 
@@ -88,9 +88,6 @@ var _ = Describe("broker command", Ordered, func() {
 			httpClient := &http.Client{
 				Transport: transport,
 			}
-
-			// sleep 900 seconds
-			time.Sleep(900 * time.Second)
 
 			// Wait for the server to start
 			Eventually(func() error {

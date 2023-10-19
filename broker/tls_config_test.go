@@ -15,7 +15,6 @@ var _ = Describe("TLSConfig", Ordered, func() {
 	var (
 		certPEM         []byte
 		keyPEM          []byte
-		caPEM           []byte
 		tlsConfig       *TLSConfig
 		generatedConfig *tls.Config
 		err             error
@@ -23,7 +22,7 @@ var _ = Describe("TLSConfig", Ordered, func() {
 
 	BeforeAll(func() {
 		// Generate test certificates and keys
-		certPEM, keyPEM, caPEM, err = GenerateTestCert()
+		certPEM, keyPEM, _, err = GenerateTestCert()
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -32,7 +31,6 @@ var _ = Describe("TLSConfig", Ordered, func() {
 		tlsConfig = &TLSConfig{
 			Certificate: string(certPEM),
 			PrivateKey:  string(keyPEM),
-			CA:          string(caPEM),
 		}
 	})
 
@@ -76,22 +74,10 @@ var _ = Describe("TLSConfig", Ordered, func() {
 			Expect(err).To(MatchError("Config error: TLS private key required"))
 		})
 
-		It("should return an error if CA is empty", func() {
-			tlsConfig.CA = ""
-			err = tlsConfig.Validate()
-			Expect(err).To(MatchError("Config error: TLS CA required"))
-		})
-
 		It("should return an error if Certificate is invalid", func() {
 			tlsConfig.Certificate = "invalid"
 			err = tlsConfig.Validate()
 			Expect(err).To(MatchError("Invalid Certificate and key: tls: failed to find any PEM data in certificate input"))
-		})
-
-		It("should return an error if CA is invalid", func() {
-			tlsConfig.CA = "invalid"
-			err = tlsConfig.Validate()
-			Expect(err).To(MatchError("Failed to decode CA certificate"))
 		})
 
 		It("should not return an error if all fields are present", func() {
