@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"net/http"
@@ -8,60 +9,74 @@ import (
 	"os/exec"
 	"time"
 
+	"code.cloudfoundry.org/lager"
+	"github.com/alphagov/paas-elasticache-broker/broker"
 	"github.com/alphagov/paas-elasticache-broker/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
+
+	main "github.com/alphagov/paas-elasticache-broker"
 )
 
-var _ = Describe("broker command", Ordered, func() {
-	var (
-		path    string
-		command string
-		err     error
-	)
+var _ = Describe("main", Ordered, func() {
 
-	BeforeAll(func() {
-		path, err = gexec.Build(".")
-		Expect(err).NotTo(HaveOccurred())
-		command = path + "/paas-elasticache-broker"
-	})
+	Describe("Broker command", Ordered, func() {
+		var (
+			path    string
+			command string
+			err     error
+		)
 
-	AfterAll(func() {
-		gexec.CleanupBuildArtifacts()
-	})
+		BeforeAll(func() {
+			path, err = gexec.Build(".")
+			Expect(err).NotTo(HaveOccurred())
+			command = path + "/paas-elasticache-broker"
+		})
 
-	It("exits nonzero when given a path to a nonexistent config file", func() {
-		cmd := exec.Command(command, "-config", "anonexistentconfigfile")
-		session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
-		Expect(err).NotTo(HaveOccurred())
+		AfterAll(func() {
+			gexec.CleanupBuildArtifacts()
+		})
 
-		session.Wait()
-		Expect(session).To(gexec.Exit(1))
-	})
-
-	Describe("when given a valid config file", func() {
-
-		It("starts the http server", func() {
-			cmd := exec.Command(command, "-config", "./test/fixtures/config.json", "-port", "8080")
+		It("exits nonzero when given a path to a nonexistent config file", func() {
+			cmd := exec.Command(command, "-config", "anonexistentconfigfile")
 			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Wait for the server to start
+			session.Wait()
+			Expect(session).To(gexec.Exit(1))
+		})
+	})
+
+	Describe("broker starts listener", Ordered, func() {
+		It("Starts the a listener on http", func() {
+
+			config, err := broker.LoadConfig("./test/fixtures/config.json")
+			Expect(err).NotTo(HaveOccurred())
+			logger := lager.NewLogger("elasticache-broker")
+			b := broker.New(config, nil, logger)
+
+			httpServer, listener, err := main.CreateListener(b, logger, config, "8081")
+			Expect(err).NotTo(HaveOccurred())
+
+			go func() {
+				httpServer.Serve(*listener)
+			}()
+
 			Eventually(func() error {
-				_, err := http.Get("http://localhost:8080/healthcheck")
+				_, err := http.Get("http://localhost:8081/healthcheck")
 				return err
 			}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-			// Stop the server
-			session.Interrupt()
-			Eventually(session).Should(gexec.Exit())
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 
-			// Check the exit code
-			Expect(session.ExitCode()).To(Equal(130))
+			err = httpServer.Shutdown(ctx)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("starts the https server", func() {
+		It("Starts the a listener on https", func() {
+
 			certPEM, keyPEM, caPEM, err := test.GenerateTestCert()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -69,9 +84,17 @@ var _ = Describe("broker command", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 			defer os.Remove(filename)
 
-			cmd := exec.Command(command, "-config", filename, "-port", "8080")
-			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			config, err := broker.LoadConfig(filename)
 			Expect(err).NotTo(HaveOccurred())
+			logger := lager.NewLogger("elasticache-broker")
+			b := broker.New(config, nil, logger)
+
+			httpServer, listener, err := main.CreateListener(b, logger, config, "8444")
+			Expect(err).NotTo(HaveOccurred())
+
+			go func() {
+				httpServer.Serve(*listener)
+			}()
 
 			certPool := x509.NewCertPool()
 			certPool.AppendCertsFromPEM([]byte(caPEM))
@@ -91,16 +114,16 @@ var _ = Describe("broker command", Ordered, func() {
 
 			// Wait for the server to start
 			Eventually(func() error {
-				_, err := httpClient.Get("https://localhost:8080/healthcheck")
+				_, err := httpClient.Get("https://localhost:8444/healthcheck")
 				return err
 			}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-			// Stop the server
-			session.Interrupt()
-			Eventually(session).Should(gexec.Exit())
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 
-			// Check the exit code
-			Expect(session.ExitCode()).To(Equal(130))
+			err = httpServer.Shutdown(ctx)
+			Expect(err).NotTo(HaveOccurred())
 		})
+
 	})
 })

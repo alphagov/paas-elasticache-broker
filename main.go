@@ -51,11 +51,6 @@ func newLogger(logLevel string) lager.Logger {
 }
 
 func newBroker(config broker.Config, logger lager.Logger) (*broker.Broker, error) {
-	if len(config.Catalog.Services) == 0 {
-		logger.Info("No service found in catalog, starting broker without provider")
-		return broker.New(config, nil, logger), nil
-	}
-
 	awsConfig := aws.NewConfig().WithRegion(config.Region)
 	awsSession := session.Must(session.NewSession(awsConfig))
 	elastiCache := elasticache.New(awsSession)
@@ -107,7 +102,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error loading config file: %s", err)
 	}
-
 	logger := newLogger(config.LogLevel)
 
 	serviceBroker, err := newBroker(config, logger)
@@ -115,22 +109,33 @@ func main() {
 		log.Fatalf("Error creating broker: %s", err)
 	}
 
+	httpServer, listener, error := CreateListener(serviceBroker, logger, config, port)
+	if error != nil {
+		log.Fatalf("Error creating listener: %s", error)
+	}
+	fmt.Println("ElastiCache Service Broker started on port " + port + "...")
+	httpServer.Serve(*listener)
+}
+
+func CreateListener(serviceBroker *broker.Broker, logger lager.Logger, config broker.Config, portNumber string) (*http.Server, *net.Listener, error) {
+
 	server := newHTTPHandler(serviceBroker, logger, config)
 
-	listenAddress := fmt.Sprintf("%s:%s", config.Host, port)
+	listenAddress := fmt.Sprintf("%s:%s", config.Host, portNumber)
 
 	listener, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		log.Fatalf("failed to listen on address %s: %s", listenAddress, err)
+		return nil, nil, fmt.Errorf("failed to listen on address %s: %s", listenAddress, err)
 	}
 	if config.TLSEnabled() {
 		tlsConfig, err := config.TLS.GenerateTLSConfig()
 		if err != nil {
-			log.Fatalf("Error configuring TLS: %s", err)
+			return nil, nil, fmt.Errorf("Error configuring TLS: %s", err)
 		}
 		listener = tls.NewListener(listener, tlsConfig)
-		logger.Info("start", lager.Data{"port": port, "tls": true, "host": config.Host, "address": listenAddress})
 	}
-	fmt.Println("ElastiCache Service Broker started on port " + port + "...")
-	http.Serve(listener, server)
+	logger.Info("start", lager.Data{"port": portNumber, "tls": config.TLSEnabled(), "host": config.Host, "address": listenAddress})
+
+	httpServer := &http.Server{Handler: server}
+	return httpServer, &listener, nil
 }
