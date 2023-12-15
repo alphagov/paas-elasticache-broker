@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -101,7 +102,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error loading config file: %s", err)
 	}
-
 	logger := newLogger(config.LogLevel)
 
 	serviceBroker, err := newBroker(config, logger)
@@ -109,12 +109,33 @@ func main() {
 		log.Fatalf("Error creating broker: %s", err)
 	}
 
-	server := newHTTPHandler(serviceBroker, logger, config)
-
-	listener, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		log.Fatalf("Error listening to port %s: %s", port, err)
+	httpServer, listener, error := CreateListener(serviceBroker, logger, config, port)
+	if error != nil {
+		log.Fatalf("Error creating listener: %s", error)
 	}
 	fmt.Println("ElastiCache Service Broker started on port " + port + "...")
-	http.Serve(listener, server)
+	httpServer.Serve(*listener)
+}
+
+func CreateListener(serviceBroker *broker.Broker, logger lager.Logger, config broker.Config, portNumber string) (*http.Server, *net.Listener, error) {
+
+	server := newHTTPHandler(serviceBroker, logger, config)
+
+	listenAddress := fmt.Sprintf("%s:%s", config.Host, portNumber)
+
+	listener, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to listen on address %s: %s", listenAddress, err)
+	}
+	if config.TLSEnabled() {
+		tlsConfig, err := config.TLS.GenerateTLSConfig()
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error configuring TLS: %s", err)
+		}
+		listener = tls.NewListener(listener, tlsConfig)
+	}
+	logger.Info("start", lager.Data{"port": portNumber, "tls": config.TLSEnabled(), "host": config.Host, "address": listenAddress})
+
+	httpServer := &http.Server{Handler: server}
+	return httpServer, &listener, nil
 }

@@ -16,6 +16,10 @@ var (
 
 type BindParameters struct{}
 
+const (
+	DefaultHost = "0.0.0.0"
+)
+
 type PlanConfig struct {
 	InstanceType              string            `json:"instance_type"`
 	ReplicasPerNodeGroup      int64             `json:"replicas_per_node_group"`
@@ -41,6 +45,8 @@ type Config struct {
 	PlanConfigs          map[string]PlanConfig     `json:"plan_configs"`
 	KmsKeyID             string                    `json:"kms_key_id"`
 	SecretsManagerPath   string                    `json:"secrets_manager_path"`
+	Host                 string                    `json:"host"`
+	TLS                  *TLSConfig                `json:"tls"`
 }
 
 func (c Config) GetPlanConfig(planID string) (PlanConfig, error) {
@@ -73,6 +79,10 @@ func LoadConfig(configFile string) (config Config, err error) {
 
 	if err = config.Validate(); err != nil {
 		return config, fmt.Errorf("Validating config contents: %s", err)
+	}
+
+	if config.Host == "" {
+		config.Host = DefaultHost
 	}
 
 	return config, nil
@@ -129,12 +139,23 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if c.TLS != nil {
+		err := c.TLS.Validate()
+		if err != nil {
+			return fmt.Errorf("TLS Validation failed: %v", err)
+		}
+	}
+
 	return nil
 }
 
 func (c Config) hasPlanConfig(id string) bool {
 	_, ok := c.PlanConfigs[id]
 	return ok
+}
+
+func (c Config) TLSEnabled() bool {
+	return c.TLS != nil
 }
 
 func (c Config) hasPlan(id string) bool {

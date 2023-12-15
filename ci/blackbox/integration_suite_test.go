@@ -19,6 +19,7 @@ import (
 
 	"github.com/alphagov/paas-elasticache-broker/broker"
 	. "github.com/alphagov/paas-elasticache-broker/ci/helpers"
+	test "github.com/alphagov/paas-elasticache-broker/test"
 )
 
 const clusterNamePrefix = "cf-broker-test"
@@ -45,7 +46,13 @@ func TestSuite(t *testing.T) {
 
 		fmt.Fprintln(GinkgoWriter, os.Environ())
 
-		originalConfig, err := broker.LoadConfig("./config.json")
+		certPEM, keyPEM, caPEM, err := test.GenerateTestCert()
+		Expect(err).NotTo(HaveOccurred())
+
+		configBase, err := test.SetTLSConfigOptions("./config.json", certPEM, keyPEM)
+		defer os.Remove(configBase)
+
+		originalConfig, err := broker.LoadConfig(configBase)
 		Expect(err).NotTo(HaveOccurred())
 
 		awsSession = session.Must(session.NewSession(&aws.Config{
@@ -90,7 +97,7 @@ func TestSuite(t *testing.T) {
 		Eventually(elastiCacheBrokerSession, 10*time.Second).
 			Should(gbytes.Say(fmt.Sprintf("ElastiCache Service Broker started on port %d", elastiCacheBrokerPort)))
 
-		elastiCacheBrokerUrl = fmt.Sprintf("http://localhost:%d", elastiCacheBrokerPort)
+		elastiCacheBrokerUrl = fmt.Sprintf("https://localhost:%d", elastiCacheBrokerPort)
 
 		brokerAPIClient = NewBrokerAPIClient(
 			elastiCacheBrokerUrl,
@@ -98,6 +105,7 @@ func TestSuite(t *testing.T) {
 			elastiCacheBrokerConfig.Password,
 			"test-organization-id",
 			"space-id",
+			caPEM,
 		)
 	})
 
@@ -113,7 +121,9 @@ func TestSuite(t *testing.T) {
 		if elastiCacheSubnetGroupName != nil {
 			Expect(DestroySubnetGroup(elastiCacheSubnetGroupName, awsSession)).To(Succeed())
 		}
-		elastiCacheBrokerSession.Kill()
+		if elastiCacheBrokerSession != nil {
+			elastiCacheBrokerSession.Kill()
+		}
 	})
 
 	RegisterFailHandler(Fail)
