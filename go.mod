@@ -1,6 +1,6 @@
 module github.com/alphagov/paas-elasticache-broker
 
-go 1.23
+go 1.22
 
 require (
 	code.cloudfoundry.org/lager v1.0.0
