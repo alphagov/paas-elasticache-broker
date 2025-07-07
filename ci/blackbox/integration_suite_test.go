@@ -119,9 +119,13 @@ func TestSuite(t *testing.T) {
 			Expect(DestroySubnetGroup(elastiCacheSubnetGroupName, awsSession)).To(Succeed())
 		}
 
-		// Wait a bit for all resources associated with the redis instances to disappear
-		// Without this, the security group fails to delete because it has a dependent object
-		time.Sleep(30 * time.Minute)
+		// Wait for all ENIs associated with the sec group to be deleted
+		Eventually(func() int {
+			count, err := CountSGAssociatedInterfaces(ec2SecurityGroupID, awsSession)
+			Expect(err).ToNot(HaveOccurred())
+			return count
+		}, 60 * time.Minute, 10 * time.Second).Should(Equal(0))
+
 		if ec2SecurityGroupID != nil {
 			Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
 		}

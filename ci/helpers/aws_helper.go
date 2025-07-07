@@ -137,6 +137,25 @@ func ReplicationGroupARN(session *session.Session, replicationGroupID string) (s
 	), nil
 }
 
+func CountSGAssociatedInterfaces(secGroupID *string, session *session.Session) (int, error) {
+	ec2Service := ec2.New(session)
+
+	result, err := ec2Service.DescribeNetworkInterfaces(&ec2.DescribeNetworkInterfacesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: 	aws.String("group-id"),
+				Values: []*string{secGroupID},
+			},
+		},
+	})
+
+	if err != nil {
+		return -1, err
+	}
+	
+	return len(result.NetworkInterfaces), nil
+}
+
 func getVPCID(session *session.Session) (string, error) {
 	vpcID := os.Getenv("AWS_VPC_ID")
 	if vpcID == "" {
