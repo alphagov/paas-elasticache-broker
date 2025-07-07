@@ -119,10 +119,11 @@ func TestSuite(t *testing.T) {
 			Expect(DestroySubnetGroup(elastiCacheSubnetGroupName, awsSession)).To(Succeed())
 		}
 
-		// Wait for all ENIs associated with the sec group to be deleted
+		fmt.Println("Waiting for network interfaces associated with security group to be deleted")
 		Eventually(func() int {
 			count, err := CountSGAssociatedInterfaces(ec2SecurityGroupID, awsSession)
 			Expect(err).ToNot(HaveOccurred())
+			fmt.Printf("Number of network interfaces associated with SG %s: %d\n", *ec2SecurityGroupID, count)
 			return count
 		}, 60 * time.Minute, 10 * time.Second).Should(Equal(0))
 
