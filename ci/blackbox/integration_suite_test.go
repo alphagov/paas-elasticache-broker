@@ -115,14 +115,17 @@ func TestSuite(t *testing.T) {
 		awsSession := session.Must(session.NewSession(&aws.Config{
 			Region: aws.String(elastiCacheBrokerConfig.Region)},
 		))
-		if ec2SecurityGroupID != nil {
-			Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
-		}
 		if elastiCacheSubnetGroupName != nil {
 			Expect(DestroySubnetGroup(elastiCacheSubnetGroupName, awsSession)).To(Succeed())
 		}
 		if elastiCacheBrokerSession != nil {
 			elastiCacheBrokerSession.Kill()
+		}
+		// Wait a bit for all resources associated with the redis instances to disappear
+		// Without this, the security group fails to delete because it has a dependent object
+		time.Sleep(1 * time.Minute)
+		if ec2SecurityGroupID != nil {
+			Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
 		}
 	})
 
