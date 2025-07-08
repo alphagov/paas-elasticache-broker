@@ -1,10 +1,10 @@
 module github.com/alphagov/paas-elasticache-broker
 
-go 1.22
+go 1.23
 
 require (
 	code.cloudfoundry.org/lager v1.0.0
-	github.com/aws/aws-sdk-go v1.44.70
+	github.com/aws/aws-sdk-go v1.55.7
 	github.com/garyburd/redigo v1.3.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.5.0
 	github.com/onsi/ginkgo/v2 v2.1.4

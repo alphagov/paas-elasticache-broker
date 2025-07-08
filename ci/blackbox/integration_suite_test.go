@@ -115,12 +115,22 @@ func TestSuite(t *testing.T) {
 		awsSession := session.Must(session.NewSession(&aws.Config{
 			Region: aws.String(elastiCacheBrokerConfig.Region)},
 		))
-		if ec2SecurityGroupID != nil {
-			Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
-		}
 		if elastiCacheSubnetGroupName != nil {
 			Expect(DestroySubnetGroup(elastiCacheSubnetGroupName, awsSession)).To(Succeed())
 		}
+
+		fmt.Println("Waiting for network interfaces associated with security group to be deleted")
+		Eventually(func() int {
+			count, err := CountSGAssociatedInterfaces(ec2SecurityGroupID, awsSession)
+			Expect(err).ToNot(HaveOccurred())
+			fmt.Printf("Number of network interfaces associated with SG %s: %d\n", *ec2SecurityGroupID, count)
+			return count
+		}, 60 * time.Minute, 10 * time.Second).Should(Equal(0))
+
+		if ec2SecurityGroupID != nil {
+			Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
+		}
+
 		if elastiCacheBrokerSession != nil {
 			elastiCacheBrokerSession.Kill()
 		}
